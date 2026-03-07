@@ -85,3 +85,6 @@ tidb_data/
 # Uploads
 uploads/
 temp/
+
+# Research (local only)
+research/
