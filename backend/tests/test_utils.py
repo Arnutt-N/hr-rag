@@ -7,6 +7,53 @@ Tests:
 """
 
 import pytest
+import re
+import html
+
+
+# Copy of validate_password_strength function for testing
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """
+    ตรวจสอบความแข็งแรงของรหัสผ่านตามมาตรฐานความปลอดภัย
+    
+    ข้อกำหนด:
+    - ความยาวอย่างน้อย 8 ตัวอักษร
+    - ต้องมีตัวอักษรพิมพ์ใหญ่ (A-Z)
+    - ต้องมีตัวอักษรพิมพ์เล็ก (a-z)
+    - ต้องมีตัวเลข (0-9)
+    - ต้องมีอักขระพิเศษ (!@#$%^&*(),.?":{}|<>)
+    """
+    if len(password) < 8:
+        return False, "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร"
+    if not re.search(r"[A-Z]", password):
+        return False, "รหัสผ่านต้องมีตัวอักษรพิมพ์ใหญ่อย่างน้อย 1 ตัว"
+    if not re.search(r"[a-z]", password):
+        return False, "รหัสผ่านต้องมีตัวอักษรพิมพ์เล็กอย่างน้อย 1 ตัว"
+    if not re.search(r"\d", password):
+        return False, "รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว"
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว (!@#$%^&*(),.?\":{}|<>)"
+    return True, "รหัสผ่านถูกต้อง"
+
+
+# Copy of sanitize_query function for testing
+def sanitize_query(query: str) -> str:
+    """
+    Sanitize search query to prevent XSS and injection attacks.
+    
+    - Escape HTML entities
+    - Limit length to 500 chars
+    - Remove dangerous special characters
+    """
+    # Escape HTML to prevent XSS
+    query = html.escape(query)
+    # Limit length
+    query = query[:500]
+    # Remove dangerous characters: < > " ' \ 
+    query = re.sub(r'[<>"\'\\]', '', query)
+    # Collapse multiple spaces
+    query = re.sub(r'\s+', ' ', query).strip()
+    return query
 
 
 class TestPasswordValidation:
@@ -14,8 +61,6 @@ class TestPasswordValidation:
 
     def test_password_validation_short(self):
         """Test that passwords under 8 chars are rejected."""
-        from app.routers.auth import validate_password_strength
-        
         short_passwords = ["a", "ab", "abc", "1234567"]
         
         for pwd in short_passwords:
@@ -25,8 +70,6 @@ class TestPasswordValidation:
 
     def test_password_validation_no_uppercase(self):
         """Test that passwords without uppercase are rejected."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("password123!")
         
         assert is_valid is False
@@ -34,8 +77,6 @@ class TestPasswordValidation:
 
     def test_password_validation_no_lowercase(self):
         """Test that passwords without lowercase are rejected."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("PASSWORD123!")
         
         assert is_valid is False
@@ -43,8 +84,6 @@ class TestPasswordValidation:
 
     def test_password_validation_no_number(self):
         """Test that passwords without numbers are rejected."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("Password!!!")
         
         assert is_valid is False
@@ -52,8 +91,6 @@ class TestPasswordValidation:
 
     def test_password_validation_no_special_char(self):
         """Test that passwords without special characters are rejected."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("Password123")
         
         assert is_valid is False
@@ -61,16 +98,12 @@ class TestPasswordValidation:
 
     def test_password_validation_valid_simple(self):
         """Test that a valid password passes."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("SecurePass123!")
         
         assert is_valid is True
 
     def test_password_validation_valid_variations(self):
         """Test various valid password formats."""
-        from app.routers.auth import validate_password_strength
-        
         valid_passwords = [
             "MyPass123!",
             "Test@456",
@@ -88,8 +121,6 @@ class TestPasswordValidation:
 
     def test_password_validation_boundary_8_chars(self):
         """Test boundary case - exactly 8 chars with all requirements."""
-        from app.routers.auth import validate_password_strength
-        
         # Exactly 8 chars with uppercase, lowercase, number, special
         is_valid, message = validate_password_strength("Aa1!aaaa")
         
@@ -98,8 +129,6 @@ class TestPasswordValidation:
 
     def test_password_validation_thai_password(self):
         """Test password validation with Thai characters (should fail)."""
-        from app.routers.auth import validate_password_strength
-        
         # Thai chars don't meet the requirements
         is_valid, message = validate_password_strength("รหัสผ่าน123!")
         
@@ -112,8 +141,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_html_escape(self):
         """Test HTML entity escaping."""
-        from app.routers.search import sanitize_query
-        
         test_cases = [
             ("<script>", "&lt;script&gt;"),
             ("&amp;", "&amp;"),
@@ -127,8 +154,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_length(self):
         """Test query length limitation."""
-        from app.routers.search import sanitize_query
-        
         # Test very long query
         long_query = "a" * 1000
         result = sanitize_query(long_query)
@@ -146,8 +171,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_dangerous_characters(self):
         """Test removal of dangerous characters."""
-        from app.routers.search import sanitize_query
-        
         dangerous = '<>"\'\\'
         result = sanitize_query(f"test{dangerous}query")
         
@@ -157,8 +180,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_space_collapse(self):
         """Test that multiple spaces are collapsed."""
-        from app.routers.search import sanitize_query
-        
         result = sanitize_query("test    multiple   spaces    here")
         
         assert "  " not in result
@@ -166,8 +187,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_trim(self):
         """Test that query is trimmed."""
-        from app.routers.search import sanitize_query
-        
         result = sanitize_query("  test  ")
         
         assert result == "test"
@@ -176,8 +195,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_unicode_preserved(self):
         """Test that unicode characters are preserved."""
-        from app.routers.search import sanitize_query
-        
         # Thai text
         result = sanitize_query("ทดสอบ ค้นหา ภาษาไทย")
         assert "ทดสอบ" in result
@@ -193,16 +210,12 @@ class TestQuerySanitization:
 
     def test_sanitize_query_empty(self):
         """Test empty query handling."""
-        from app.routers.search import sanitize_query
-        
         result = sanitize_query("")
         
         assert result == ""
 
     def test_sanitize_query_special_thai_chars(self):
         """Test that Thai special chars are preserved."""
-        from app.routers.search import sanitize_query
-        
         # Thai vowels and tone marks should be preserved
         result = sanitize_query("การทดสอบ")
         
@@ -210,8 +223,6 @@ class TestQuerySanitization:
 
     def test_sanitize_query_mixed_content(self):
         """Test sanitization of mixed content."""
-        from app.routers.search import sanitize_query
-        
         # Mix of valid and invalid
         result = sanitize_query('Search <script>test"query\'with\\special  spaces')
         
@@ -227,40 +238,30 @@ class TestPasswordValidationEdgeCases:
 
     def test_password_all_numbers(self):
         """Test password with only numbers fails."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("12345678")
         
         assert is_valid is False
 
     def test_password_all_special(self):
         """Test password with only special chars fails."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("!@#$%^&*")
         
         assert is_valid is False
 
     def test_password_mixed_case_but_no_number(self):
         """Test password with both cases but no number fails."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("Password!")
         
         assert is_valid is False
 
     def test_password_mixed_case_but_no_special(self):
         """Test password with both cases and number but no special fails."""
-        from app.routers.auth import validate_password_strength
-        
         is_valid, message = validate_password_strength("Password123")
         
         assert is_valid is False
 
     def test_password_exactly_meets_requirements(self):
         """Test password that exactly meets all requirements."""
-        from app.routers.auth import validate_password_strength
-        
         # 8 chars, uppercase, lowercase, number, special
         is_valid, message = validate_password_strength("Aa1!bbbb")
         

@@ -5,33 +5,27 @@ Pytest configuration and fixtures for HR-RAG Backend Tests
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
-from httpx import AsyncClient, ASGITransport
 
-# Mock the database before importing app
-@pytest.fixture(scope="session", autouse=True)
-def mock_database():
-    """Mock the database module to avoid actual DB connections."""
-    mock_db = MagicMock()
-    mock_db.execute = AsyncMock()
-    mock_db.commit = AsyncMock()
-    mock_db.refresh = AsyncMock()
-    mock_db.add = MagicMock()
-    
-    with patch('app.models.database.get_db') as mock_get_db:
-        async def override_get_db():
-            yield mock_db
-        mock_get_db.return_value = override_get_db()
-        
-        # Also patch init_db
-        with patch('app.models.database.init_db', new_callable=AsyncMock):
-            yield mock_db
+# Set up test environment variables before importing app
+import os
+os.environ["JWT_SECRET_KEY"] = "test-secret-key-for-unit-tests-only"
+os.environ["CORS_ORIGINS"] = "http://localhost:3000"
+os.environ["DATABASE_URL"] = "mysql+aiomysql://test:test@localhost/test_db"
 
 
 @pytest.fixture
 def client():
     """Create a test client for the FastAPI app."""
-    from app.main import app
-    return TestClient(app)
+    with patch('app.main.init_db') as mock_init:
+        mock_init.return_value = AsyncMock()
+        with patch('app.services.cache.get_cache_service') as mock_cache:
+            mock_cache_instance = MagicMock()
+            mock_cache_instance.connect = AsyncMock()
+            mock_cache_instance.disconnect = AsyncMock()
+            mock_cache.return_value = mock_cache_instance
+            
+            from app.main import app
+            return TestClient(app)
 
 
 @pytest.fixture

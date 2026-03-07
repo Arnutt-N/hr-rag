@@ -19,6 +19,8 @@ from app.core.security import (
     create_access_token,
     get_current_user,
 )
+import re
+
 from app.core.logging import get_logger
 
 # Setup structlog logger
@@ -27,25 +29,38 @@ logger = get_logger(__name__)
 # Rate limiter instance (use same key_func as main)
 limiter = Limiter(key_func=get_remote_address)
 
+
+def validate_password_strength(password: str) -> tuple[bool, str]:
+    """
+    ตรวจสอบความแข็งแรงของรหัสผ่านตามมาตรฐานความปลอดภัย
+    
+    ข้อกำหนด:
+    - ความยาวอย่างน้อย 8 ตัวอักษร
+    - ต้องมีตัวอักษรพิมพ์ใหญ่ (A-Z)
+    - ต้องมีตัวอักษรพิมพ์เล็ก (a-z)
+    - ต้องมีตัวเลข (0-9)
+    - ต้องมีอักขระพิเศษ (!@#$%^&*(),.?":{}|<>)
+    
+    Returns:
+        tuple[bool, str]: (ผ่านการตรวจสอบ, ข้อความอธิบาย)
+    """
+    if len(password) < 8:
+        return False, "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร"
+    if not re.search(r"[A-Z]", password):
+        return False, "รหัสผ่านต้องมีตัวอักษรพิมพ์ใหญ่อย่างน้อย 1 ตัว"
+    if not re.search(r"[a-z]", password):
+        return False, "รหัสผ่านต้องมีตัวอักษรพิมพ์เล็กอย่างน้อย 1 ตัว"
+    if not re.search(r"\d", password):
+        return False, "รหัสผ่านต้องมีตัวเลขอย่างน้อย 1 ตัว"
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
+        return False, "รหัสผ่านต้องมีอักขระพิเศษอย่างน้อย 1 ตัว (!@#$%^&*(),.?\":{}|<>)"
+    return True, "รหัสผ่านถูกต้อง"
+
+
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-# Rate limit exceeded handler for this router
-@router.exception_handler(RateLimitExceeded)
-async def auth_rate_limit_handler(request: Request, exc: RateLimitExceeded):
-    """Log rate limit hits for auth endpoints."""
-    logger.warning(
-        "auth_rate_limit_exceeded",
-        ip=get_remote_address(request),
-        endpoint=request.url.path,
-        detail=exc.detail,
-    )
-    from fastapi.responses import JSONResponse
-    return JSONResponse(
-        status_code=429,
-        content={"detail": "Too many requests", "retry_after": str(exc.detail)},
-        headers={"Retry-After": str(exc.detail)}
-    )
+# Note: Rate limit exception handler is in main.py at app level
 
 
 @router.post("/register", response_model=UserResponse)
@@ -56,6 +71,11 @@ async def register(payload: UserCreate, request: Request, db: AsyncSession = Dep
     Rate limited to 3 attempts per hour per IP to prevent abuse.
     """
     logger.info("user_registration_attempt", email=payload.email, ip=get_remote_address(request))
+    
+    # Validate password strength
+    is_valid, message = validate_password_strength(payload.password)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=message)
     
     # ensure unique
     res = await db.execute(select(User).where((User.email == payload.email) | (User.username == payload.username)))
