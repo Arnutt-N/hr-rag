@@ -215,3 +215,69 @@ Suggested tools:
 - [ ] Backup strategy for relational DB + vector DB
 - [ ] Incident response: key rotation runbook
 
+---
+
+## 8) Security Checklist (Pre-Production)
+
+### Authentication & Authorization
+- [ ] JWT_SECRET_KEY เป็นค่าที่ถูกสุ่มอย่างปลอดภัย (minimum 256-bit)
+- [ ] ตั้งค่า JWT_ACCESS_TOKEN_EXPIRE_MINUTES ไม่เกิน 60 นาที
+- [ ] เปิดใช้งาน strong password policy (min 8 chars, uppercase, lowercase, number, special)
+- [ ] ตรวจสอบว่า rate limiting ทำงานบน auth endpoints
+- [ ] ตรวจสอบ RBAC (Role-Based Access Control) ถูกต้อง
+
+### API Security
+- [ ] CORS_ORIGINS ตั้งค่าเป็น domain ของ production เท่านั้น ไม่ใช่ wildcard
+- [ ] API Keys ถูกจัดเก็บใน secret manager ไม่ใช่ใน code
+- [ ] ตรวจสอบว่าใช้ parameterized queries ทุกที่ (ป้องกัน SQL injection)
+- [ ] เปิดใช้งาน rate limiting บน endpoints ที่สำคัญ
+
+### Input Validation & File Upload
+- [ ] ตรวจสอบ file type ด้วย magic numbers ไม่ใช่แค่ extension
+- [ ] จำกัดขนาดไฟล์ upload (MAX_FILE_SIZE)
+- [ ] Input sanitization ก่อนประมวลผล
+
+### Infrastructure & Docker
+- [ ] Container ทำงานด้วย non-root user
+- [ ] กำหนด resource limits (CPU, memory) ใน Docker
+- [ ] มี health check endpoints
+- [ ] ไม่ expose ports ที่ไม่จำเป็น
+
+### Network & Headers
+- [ ] ใช้ HTTPS เท่านั้น (บังคับ redirect HTTP → HTTPS)
+- [ ] เปิดใช้งาน HSTS (HTTP Strict Transport Security)
+- [ ] เพิ่ม security headers:
+  - [ ] X-Frame-Options: DENY
+  - [ ] X-Content-Type-Options: nosniff
+  - [ ] X-XSS-Protection: 1; mode=block
+  - [ ] Content-Security-Policy (CSP)
+
+### Monitoring & Incident Response
+- [ ] เปิด logging สำหรับ security events
+- [ ] มี alerting สำหรับ failed login attempts
+- [ ] มี key rotation policy
+- [ ] มี backup และ disaster recovery plan
+- [ ] ทดสอบ incident response plan
+
+---
+
+### Production Security Validation
+
+```bash
+# ตรวจสอบ JWT Secret
+# - ความยาวอย่างน้อย 32 ตัวอักษร
+# - ใช้ random string ไม่ใช่ dictionary word
+
+# ตรวจสอบ CORS
+curl -I -H "Origin: https://evil.com" http://localhost:8000/api/health
+# ควรได้รับ 403 Forbidden
+
+# ตรวจสอบ Security Headers
+curl -I http://localhost:8000/api/health
+# ควรมี X-Frame-Options, X-Content-Type-Options, CSP
+```
+
+---
+
+**หมายเหตุ:** Security audit ฉบับเต็ม available ที่ `SECURITY_AUDIT.md`
+

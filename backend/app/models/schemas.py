@@ -78,3 +78,59 @@ class LoginAttemptResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==================== AUTH SCHEMAS ====================
+
+class UserCreate(BaseModel):
+    email: str
+    username: str
+    password: str
+    full_name: Optional[str] = None
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    username: str
+    full_name: Optional[str]
+    is_member: bool
+    is_active: bool
+
+    class Config:
+        from_attributes = True
+
+
+# ==================== CHAT SCHEMAS ====================
+
+class ChatRequest(BaseModel):
+    message: str
+    project_id: int
+    session_id: Optional[int] = None
+    stream: bool = False
+    llm_provider: Optional[str] = None
+
+
+# ==================== LLM PROVIDER ENUM ====================
+
+class LLMProvider(str, Enum):
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+    OLLAMA = "ollama"
+    KIMI = "kimi"
+    GLM = "glm"
+    MINIMAX = "minimax"
+    QWEN = "qwen"
+    DEEPSEEK = "deepseek"
+    CUSTOM = "custom"
