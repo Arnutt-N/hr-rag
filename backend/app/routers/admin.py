@@ -121,10 +121,12 @@ async def list_users(
     # Apply filters
     conditions = []
     if search:
+        # Use parameterized query to prevent SQL injection
+        search_lower = search.lower()
         conditions.append(or_(
-            User.email.ilike(f"%{search}%"),
-            User.username.ilike(f"%{search}%"),
-            User.full_name.ilike(f"%{search}%")
+            func.lower(User.email).contains(search_lower),
+            func.lower(User.username).contains(search_lower),
+            func.lower(User.full_name).contains(search_lower)
         ))
     if role:
         conditions.append(User.role == role)
@@ -632,10 +634,12 @@ async def list_all_projects(
     count_query = select(func.count(Project.id))
     
     if search:
+        # Use parameterized query to prevent SQL injection
+        search_lower = search.lower()
         search_filter = or_(
-            Project.name.ilike(f"%{search}%"),
-            Project.description.ilike(f"%{search}%"),
-            User.email.ilike(f"%{search}%")
+            func.lower(Project.name).contains(search_lower),
+            func.lower(Project.description).contains(search_lower),
+            func.lower(User.email).contains(search_lower)
         )
         query = query.where(search_filter)
         count_query = count_query.join(User).where(search_filter)
@@ -696,10 +700,12 @@ async def list_all_documents(
     
     conditions = []
     if search:
+        # Use parameterized query to prevent SQL injection
+        search_lower = search.lower()
         conditions.append(or_(
-            Document.filename.ilike(f"%{search}%"),
-            Document.original_filename.ilike(f"%{search}%"),
-            Document.content.ilike(f"%{search}%")
+            func.lower(Document.filename).contains(search_lower),
+            func.lower(Document.original_filename).contains(search_lower),
+            func.lower(Document.content).contains(search_lower)
         ))
     if file_type:
         conditions.append(Document.file_type == file_type)

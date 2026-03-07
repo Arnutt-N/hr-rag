@@ -1,5 +1,29 @@
 
 
+from datetime import datetime
+from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+class SearchRequest(BaseModel):
+    query: str
+    project_id: Optional[int] = None
+    top_k: int = Field(default=5, ge=1, le=20)  # Configurable, max 20
+
+
+class SearchResult(BaseModel):
+    text: str
+    score: float
+    document_id: int
+    filename: str
+
+
+class SearchResponse(BaseModel):
+    query: str
+    results: List[SearchResult]
+
+
 # ==================== ADMIN / AUDIT SCHEMAS ====================
 
 class SystemLogLevel(str, Enum):

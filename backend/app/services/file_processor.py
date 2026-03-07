@@ -104,7 +104,7 @@ async def extract_text(file: UploadFile) -> Tuple[str, dict]:
     raise HTTPException(status_code=400, detail=f"Unsupported file type: {ext}")
 
 
-def chunk_text(text: str, chunk_size: int = 900, overlap: int = 150) -> List[str]:
+def chunk_text(text: str, chunk_size: int = 1500, overlap: int = 150) -> List[str]:
     """Chunk text with Thai-friendly sentence segmentation when possible.
 
     Uses PyThaiNLP sent_tokenize if available; otherwise falls back to simple splitting.

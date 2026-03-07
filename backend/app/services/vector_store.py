@@ -90,8 +90,9 @@ class VectorStore:
         # Generate embeddings
         embeddings = await self.embedding_service.embed_texts(chunks)
         
-        # Create points
+        # Create points - batch insert for better performance
         vector_ids = []
+        points = []
         for i, (chunk, emb) in enumerate(zip(chunks, embeddings)):
             vector_id = str(uuid.uuid4())
             vector_ids.append(vector_id)
@@ -107,9 +108,13 @@ class VectorStore:
                     **metadata[i]
                 }
             )
+            points.append(point)
+        
+        # Single batch upsert instead of one-by-one
+        if points:
             self.client.upsert(
                 collection_name=collection_name,
-                points=[point]
+                points=points
             )
         
         return vector_ids

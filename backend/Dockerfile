@@ -19,4 +19,8 @@ COPY app ./app
 
 EXPOSE 8000
 
+# Run as non-root user for security
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER 1000:1000
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
