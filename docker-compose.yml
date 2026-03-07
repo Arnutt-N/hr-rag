@@ -1,0 +1,106 @@
+version: '3.8'
+
+services:
+  # Frontend - Next.js
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: hr-rag-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_QDRANT_URL=http://qdrant:6333
+    depends_on:
+      - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev
+    restart: unless-stopped
+
+  # Backend - FastAPI
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hr-rag-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@tidb:${MYSQL_PORT}/${MYSQL_DATABASE}
+      - TIDB_HOST=tidb
+      - TIDB_PORT=${MYSQL_PORT}
+      - TIDB_USER=root
+      - TIDB_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - TIDB_DATABASE=${MYSQL_DATABASE}
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+      # Admin Panel Settings
+      - ADMIN_SESSION_TIMEOUT=${ADMIN_SESSION_TIMEOUT:-86400}
+      - ADMIN_MAX_LOGIN_ATTEMPTS=${ADMIN_MAX_LOGIN_ATTEMPTS:-5}
+      - ADMIN_IP_BLOCK_DURATION=${ADMIN_IP_BLOCK_DURATION:-3600}
+      - ADMIN_LOG_RETENTION_DAYS=${ADMIN_LOG_RETENTION_DAYS:-90}
+    depends_on:
+      - redis
+      - qdrant
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: hr-rag-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    restart: unless-stopped
+
+  # Redis for caching and sessions
+  redis:
+    image: redis:7-alpine
+    container_name: hr-rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # TiDB (for local development - use TiDB Cloud in production)
+  # Note: For production, use TiDB Cloud instead of this container
+  tidb:
+    image: pingcap/tidb:v8.1.0
+    container_name: hr-rag-tidb
+    ports:
+      - "4000:4000"
+      - "10080:10080"
+    command:
+      - --store=mocktikv
+      - --path=/tmp/tidb
+      - --log-file=/tmp/tidb.log
+    volumes:
+      - tidb_data:/tmp/tidb
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  redis_data:
+  tidb_data:
+
+networks:
+  default:
+    name: hr-rag-network
