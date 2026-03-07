@@ -26,6 +26,9 @@ from app.core.security import (
     get_current_user,
     get_password_hash,
 )
+from app.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -35,10 +38,17 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 async def require_admin(current_user: User = Depends(get_current_user)):
     """Require admin role to access admin endpoints"""
     if current_user.role != UserRole.ADMIN:
+        logger.warning(
+            "admin_access_denied",
+            user_id=current_user.id,
+            username=current_user.username,
+            role=current_user.role.value,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required"
         )
+    logger.info("admin_access_granted", user_id=current_user.id, username=current_user.username)
     return current_user
 
 

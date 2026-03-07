@@ -18,10 +18,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.security import get_current_active_member
+from app.core.logging import get_logger
 from app.models.schemas import ChatRequest, SearchRequest
 from app.models.database import Project, ChatSession, ChatMessage, get_db
 from app.services.vector_store import get_vector_store
 from app.services.llm_providers import get_llm_service
+
+logger = get_logger(__name__)
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -54,10 +57,20 @@ async def chat(
     current_user=Depends(get_current_active_member),
     db: AsyncSession = Depends(get_db),
 ):
+    logger.info(
+        "chat_request",
+        user_id=current_user.id,
+        project_id=payload.project_id,
+        session_id=payload.session_id,
+        stream=payload.stream,
+        provider=str(payload.llm_provider or current_user.preferred_llm_provider),
+    )
+    
     # validate project ownership
     res = await db.execute(select(Project).where(Project.id == payload.project_id, Project.owner_id == current_user.id))
     project = res.scalar_one_or_none()
     if not project:
+        logger.warning("chat_project_not_found", user_id=current_user.id, project_id=payload.project_id)
         raise HTTPException(status_code=404, detail="Project not found")
 
     session = await _get_or_create_session(db, current_user.id, project.id, payload.session_id)
@@ -126,17 +139,20 @@ async def chat_ws(websocket: WebSocket):
     from app.core.security import decode_token
     token = websocket.query_params.get("token")
     if not token:
+        logger.warning("ws_chat_auth_failed", reason="missing_token")
         await websocket.close(code=4401)
         return
 
     try:
         payload = decode_token(token)
         user_id = int(payload.get("sub"))
-    except Exception:
+    except Exception as e:
+        logger.warning("ws_chat_auth_failed", reason="invalid_token", error=str(e))
         await websocket.close(code=4401)
         return
 
     await websocket.accept()
+    logger.info("ws_chat_connected", user_id=user_id)
 
     # Create a DB session manually in WS
     from app.models.database import AsyncSessionLocal
@@ -151,10 +167,13 @@ async def chat_ws(websocket: WebSocket):
                 session_id = msg.get("session_id")
                 provider = msg.get("llm_provider")
 
+                logger.info("ws_chat_message", user_id=user_id, project_id=project_id, message_len=len(message))
+
                 # validate project ownership
                 res = await db.execute(select(Project).where(Project.id == project_id, Project.owner_id == user_id))
                 project = res.scalar_one_or_none()
                 if not project:
+                    logger.warning("ws_chat_project_not_found", user_id=user_id, project_id=project_id)
                     await websocket.send_text(json.dumps({"type": "error", "detail": "Project not found"}))
                     continue
 

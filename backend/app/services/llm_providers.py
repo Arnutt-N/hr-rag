@@ -12,6 +12,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 
+import httpx
+
 from app.core.config import get_settings
 from app.models.schemas import LLMProvider
 
@@ -132,11 +134,33 @@ class BaseLLMProvider(ABC):
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI GPT provider"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.openai_api_key,
             base_url="https://api.openai.com/v1"
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton OpenAI client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.openai_api_key,
+                base_url="https://api.openai.com/v1",
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                ) if hasattr(settings, 'llm_max_connections') else None
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -151,8 +175,7 @@ class OpenAIProvider(BaseLLMProvider):
         
         await self._with_rate_limit("openai")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=self.api_key, base_url=self.base_url)
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -181,8 +204,23 @@ class OpenAIProvider(BaseLLMProvider):
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude provider"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(api_key=settings.anthropic_api_key)
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton Anthropic client with connection pooling"""
+        if cls._client is None:
+            from anthropic import AsyncAnthropic
+            cls._client = AsyncAnthropic(
+                api_key=settings.anthropic_api_key,
+                timeout=httpx.Timeout(settings.llm_timeout),
+                max_retries=settings.llm_max_retries
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -197,8 +235,7 @@ class AnthropicProvider(BaseLLMProvider):
         
         await self._with_rate_limit("anthropic")
         
-        from anthropic import AsyncAnthropic
-        client = AsyncAnthropic(api_key=self.api_key)
+        client = self.get_client()
         
         if stream:
             async with client.messages.stream(
@@ -224,8 +261,22 @@ class AnthropicProvider(BaseLLMProvider):
 class GoogleProvider(BaseLLMProvider):
     """Google Gemini provider"""
     
+    # Singleton client - class-level (genai client is stateless, but configure once)
+    _configured = False
+    
     def __init__(self):
         super().__init__(api_key=settings.google_api_key)
+    
+    @classmethod
+    def configure(cls):
+        """Configure Google genai client once"""
+        if not cls._configured:
+            import google.generativeai as genai
+            genai.configure(
+                api_key=settings.google_api_key,
+                timeout=settings.llm_timeout
+            )
+            cls._configured = True
     
     async def generate(
         self,
@@ -240,8 +291,10 @@ class GoogleProvider(BaseLLMProvider):
         
         await self._with_rate_limit("google")
         
+        # Configure once
+        self.configure()
+        
         import google.generativeai as genai
-        genai.configure(api_key=self.api_key)
         
         generation_config = {
             "temperature": temperature,
@@ -271,11 +324,28 @@ class GoogleProvider(BaseLLMProvider):
 class OllamaProvider(BaseLLMProvider):
     """Ollama local model provider"""
     
+    # Singleton httpx client with connection pooling
+    _client = None
+    
     def __init__(self):
         super().__init__(
             base_url=settings.ollama_base_url
         )
         self.default_model = settings.ollama_model
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton httpx client with connection pooling"""
+        if cls._client is None:
+            cls._client = httpx.AsyncClient(
+                base_url=settings.ollama_base_url,
+                timeout=httpx.Timeout(settings.llm_timeout),
+                limits=httpx.Limits(
+                    max_keepalive_connections=settings.llm_keepalive_connections,
+                    max_connections=settings.llm_max_connections
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -289,32 +359,45 @@ class OllamaProvider(BaseLLMProvider):
         
         await self._with_rate_limit("ollama")
         
-        import aiohttp
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.base_url}/api/generate",
+        client = self.get_client()
+        
+        if stream:
+            async with client.stream(
+                "POST",
+                "/api/generate",
                 json={
                     "model": model,
                     "prompt": prompt,
-                    "stream": stream,
+                    "stream": True,
                     "options": {
                         "temperature": temperature,
                         "num_predict": max_tokens
                     }
                 }
             ) as response:
-                if stream:
-                    async for line in response.content:
-                        if line:
-                            try:
-                                data = json.loads(line)
-                                if "response" in data:
-                                    yield data["response"]
-                            except json.JSONDecodeError:
-                                continue
-                else:
-                    data = await response.json()
-                    yield data.get("response", "")
+                async for line in response.aiter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line)
+                            if "response" in data:
+                                yield data["response"]
+                        except json.JSONDecodeError:
+                            continue
+        else:
+            response = await client.post(
+                "/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": temperature,
+                        "num_predict": max_tokens
+                    }
+                }
+            )
+            data = response.json()
+            yield data.get("response", "")
 
 
 # ==================== KIMI PROVIDER (Moonshot AI) ====================
@@ -322,11 +405,33 @@ class OllamaProvider(BaseLLMProvider):
 class KimiProvider(BaseLLMProvider):
     """Kimi (Moonshot AI) provider - OpenAI compatible"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.kimi_api_key,
             base_url=settings.kimi_base_url
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton Kimi client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.kimi_api_key,
+                base_url=settings.kimi_base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -341,11 +446,7 @@ class KimiProvider(BaseLLMProvider):
         
         await self._with_rate_limit("kimi")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -374,11 +475,33 @@ class KimiProvider(BaseLLMProvider):
 class GLMProvider(BaseLLMProvider):
     """GLM (Zhipu AI) provider - OpenAI compatible"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.glm_api_key,
             base_url=settings.glm_base_url
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton GLM client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.glm_api_key,
+                base_url=settings.glm_base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -393,11 +516,7 @@ class GLMProvider(BaseLLMProvider):
         
         await self._with_rate_limit("glm")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -426,11 +545,33 @@ class GLMProvider(BaseLLMProvider):
 class MiniMaxProvider(BaseLLMProvider):
     """MiniMax provider - OpenAI compatible"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.minimax_api_key,
             base_url=settings.minimax_base_url
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton MiniMax client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.minimax_api_key,
+                base_url=settings.minimax_base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -445,11 +586,7 @@ class MiniMaxProvider(BaseLLMProvider):
         
         await self._with_rate_limit("minimax")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -478,11 +615,33 @@ class MiniMaxProvider(BaseLLMProvider):
 class QwenProvider(BaseLLMProvider):
     """Qwen (Alibaba) provider - OpenAI compatible"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.qwen_api_key,
             base_url=settings.qwen_base_url
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton Qwen client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.qwen_api_key,
+                base_url=settings.qwen_base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -497,11 +656,7 @@ class QwenProvider(BaseLLMProvider):
         
         await self._with_rate_limit("qwen")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         # Map model names to DashScope format
         model_map = {
@@ -539,11 +694,33 @@ class QwenProvider(BaseLLMProvider):
 class DeepSeekProvider(BaseLLMProvider):
     """DeepSeek provider - OpenAI compatible"""
     
+    # Singleton client - class-level
+    _client = None
+    
     def __init__(self):
         super().__init__(
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url
         )
+    
+    @classmethod
+    def get_client(cls):
+        """Get singleton DeepSeek client with connection pooling"""
+        if cls._client is None:
+            from openai import AsyncOpenAI
+            cls._client = AsyncOpenAI(
+                api_key=settings.deepseek_api_key,
+                base_url=settings.deepseek_base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+        return cls._client
     
     async def generate(
         self,
@@ -558,11 +735,7 @@ class DeepSeekProvider(BaseLLMProvider):
         
         await self._with_rate_limit("deepseek")
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -591,6 +764,10 @@ class DeepSeekProvider(BaseLLMProvider):
 class CustomProvider(BaseLLMProvider):
     """Custom OpenAI-compatible provider"""
     
+    # Instance-level client (since api_key/base_url can be custom per instance)
+    _client = None
+    _client_key = None
+    
     def __init__(
         self,
         api_key: Optional[str] = None,
@@ -602,6 +779,30 @@ class CustomProvider(BaseLLMProvider):
             base_url=base_url or settings.custom_base_url
         )
         self.default_model = default_model or settings.custom_model
+    
+    def get_client(self):
+        """Get singleton client with connection pooling (instance-level)"""
+        # Create a unique key for this configuration
+        client_key = f"{self.api_key}:{self.base_url}"
+        
+        # Only create new client if config changed or no client exists
+        if CustomProvider._client is None or CustomProvider._client_key != client_key:
+            from openai import AsyncOpenAI
+            CustomProvider._client = AsyncOpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                timeout=settings.llm_timeout,
+                max_retries=settings.llm_max_retries,
+                http_client=httpx.AsyncClient(
+                    limits=httpx.Limits(
+                        max_keepalive_connections=settings.llm_keepalive_connections,
+                        max_connections=settings.llm_max_connections
+                    )
+                )
+            )
+            CustomProvider._client_key = client_key
+        
+        return CustomProvider._client
     
     async def generate(
         self,
@@ -618,11 +819,7 @@ class CustomProvider(BaseLLMProvider):
         
         model = model or self.default_model
         
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        client = self.get_client()
         
         if stream:
             stream_response = await client.chat.completions.create(
@@ -819,3 +1016,42 @@ def get_llm_service() -> LLMService:
     if _llm_service is None:
         _llm_service = LLMService()
     return _llm_service
+
+
+async def close_llm_clients():
+    """Close all LLM client connections gracefully"""
+    global _llm_service
+    
+    # Close OpenAI-compatible clients
+    providers_with_clients = [
+        OpenAIProvider,
+        AnthropicProvider,
+        KimiProvider,
+        GLMProvider,
+        MiniMaxProvider,
+        QwenProvider,
+        DeepSeekProvider,
+        CustomProvider,
+    ]
+    
+    for provider_class in providers_with_clients:
+        if provider_class._client is not None:
+            try:
+                await provider_class._client.close()
+            except Exception:
+                pass
+            provider_class._client = None
+    
+    # Close Ollama httpx client
+    if OllamaProvider._client is not None:
+        try:
+            await OllamaProvider._client.aclose()
+        except Exception:
+            pass
+        OllamaProvider._client = None
+    
+    # Reset Google configuration
+    GoogleProvider._configured = False
+    
+    # Clear LLM service
+    _llm_service = None

@@ -22,6 +22,7 @@ class SearchResult(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     results: List[SearchResult]
+    cached: bool = False  # Whether result was served from cache
 
 
 # ==================== ADMIN / AUDIT SCHEMAS ====================

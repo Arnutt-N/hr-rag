@@ -76,6 +76,12 @@ class Settings(BaseSettings):
     # Rate limiting (requests per minute per provider)
     rate_limit_per_provider: int = 60
     
+    # LLM Connection Pool Settings
+    llm_timeout: float = 60.0
+    llm_max_retries: int = 2
+    llm_max_connections: int = 100
+    llm_keepalive_connections: int = 20
+    
     # Default LLM provider
     default_llm_provider: str = "openai"  # openai, anthropic, google, ollama, kimi, glm, minimax, qwen, deepseek, custom
     
@@ -86,6 +92,11 @@ class Settings(BaseSettings):
     # CORS - รองรับหลาย domain โดยคั่นด้วย comma
     # ตัวอย่าง: "https://example.com,http://localhost:3000"
     cors_origins_str: str = ""  # อ่าน string จาก env แล้วค่อย parse
+    
+    # Redis Cache
+    redis_url: str = "redis://localhost:6379"
+    cache_ttl_seconds: int = 3600  # 1 hour default
+    chat_cache_ttl_seconds: int = 300  # 5 minutes for chat
     
     class Config:
         env_file = ".env"

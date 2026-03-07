@@ -3,7 +3,6 @@
 JWT-based auth for members.
 """
 
-import logging
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,9 +19,10 @@ from app.core.security import (
     create_access_token,
     get_current_user,
 )
+from app.core.logging import get_logger
 
-# Setup logger for auth rate limiting
-logger = logging.getLogger(__name__)
+# Setup structlog logger
+logger = get_logger(__name__)
 
 # Rate limiter instance (use same key_func as main)
 limiter = Limiter(key_func=get_remote_address)
@@ -35,9 +35,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def auth_rate_limit_handler(request: Request, exc: RateLimitExceeded):
     """Log rate limit hits for auth endpoints."""
     logger.warning(
-        f"Auth rate limit exceeded - IP: {get_remote_address(request)} "
-        f"Endpoint: {request.url.path} "
-        f"Detail: {exc.detail}"
+        "auth_rate_limit_exceeded",
+        ip=get_remote_address(request),
+        endpoint=request.url.path,
+        detail=exc.detail,
     )
     from fastapi.responses import JSONResponse
     return JSONResponse(
@@ -54,7 +55,7 @@ async def register(payload: UserCreate, request: Request, db: AsyncSession = Dep
     
     Rate limited to 3 attempts per hour per IP to prevent abuse.
     """
-    logger.info(f"Registration attempt for email: {payload.email}")
+    logger.info("user_registration_attempt", email=payload.email, ip=get_remote_address(request))
     
     # ensure unique
     res = await db.execute(select(User).where((User.email == payload.email) | (User.username == payload.username)))
@@ -73,7 +74,7 @@ async def register(payload: UserCreate, request: Request, db: AsyncSession = Dep
     db.add(user)
     await db.commit()
     await db.refresh(user)
-    logger.info(f"User registered successfully: {user.email}")
+    logger.info("user_registered", user_id=user.id, email=user.email)
     return user
 
 
@@ -84,19 +85,19 @@ async def login(payload: UserLogin, request: Request, db: AsyncSession = Depends
     
     Rate limited to 5 attempts per minute per IP to prevent brute force attacks.
     """
-    logger.info(f"Login attempt for username: {payload.username}")
+    logger.info("user_login_attempt", username=payload.username, ip=get_remote_address(request))
     
     res = await db.execute(select(User).where(User.username == payload.username))
     user = res.scalar_one_or_none()
     if not user or not verify_password(payload.password, user.hashed_password):
-        logger.warning(f"Failed login attempt for username: {payload.username}")
+        logger.warning("user_login_failed", username=payload.username, reason="invalid_credentials")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     if not user.is_active:
-        logger.warning(f"Login attempt for disabled user: {payload.username}")
+        logger.warning("user_login_failed", username=payload.username, reason="user_disabled")
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User disabled")
 
     token = create_access_token({"sub": str(user.id)})
-    logger.info(f"User logged in successfully: {user.username}")
+    logger.info("user_logged_in", user_id=user.id, username=user.username)
     return Token(access_token=token)
 
 

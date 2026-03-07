@@ -9,12 +9,17 @@ Best-effort extraction:
 - TXT: utf-8 with fallback
 
 Also includes Thai-friendly chunking strategy (sentence-based when possible).
+
+Security: File type validation uses magic numbers (not just extensions) to detect
+file spoofing (e.g., .exe renamed to .pdf).
 """
 
 from __future__ import annotations
 
 import io
+import logging
 import os
+import tempfile
 from pathlib import Path
 from typing import List, Tuple, Optional
 
@@ -23,6 +28,40 @@ from fastapi import UploadFile, HTTPException
 from app.core.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# Magic number-based MIME type validation
+# Note: .doc files may also be detected as application/msword
+ALLOWED_MIME_TYPES = {
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',  # .docx
+    'text/plain',
+    'application/msword',  # .doc
+}
+
+
+def validate_file_type(file_path: str) -> Tuple[bool, str]:
+    """Validate file by magic number, not extension.
+    
+    Prevents file spoofing attacks (e.g., .exe renamed to .pdf).
+    
+    Returns:
+        (is_valid, mime_type) - Tuple of (True, mime) if valid, (False, mime_or_error) if invalid
+    """
+    try:
+        import magic
+        mime = magic.from_file(file_path, mime=True)
+        if mime in ALLOWED_MIME_TYPES:
+            logger.info(f"File validation passed: {mime}")
+            return True, mime
+        logger.warning(f"File validation failed: {mime} not in allowed types")
+        return False, mime
+    except ImportError:
+        logger.error("python-magic not installed, falling back to extension-only validation")
+        return False, "python-magic not installed"
+    except Exception as e:
+        logger.error(f"File validation error: {e}")
+        return False, str(e)
 
 
 def _ext(filename: str) -> str:
@@ -50,6 +89,21 @@ async def extract_text(file: UploadFile) -> Tuple[str, dict]:
 
     if len(raw) > settings.max_file_size:
         raise HTTPException(status_code=413, detail="File too large")
+
+    # Validate file using magic numbers (security: prevent file spoofing)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+        tmp.write(raw)
+        tmp_path = tmp.name
+    
+    try:
+        is_valid, mime = validate_file_type(tmp_path)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file type: {mime}. Only PDF, DOCX, DOC, and TXT files are allowed."
+            )
+    finally:
+        os.unlink(tmp_path)
 
     if ext == ".txt":
         for enc in ("utf-8", "utf-8-sig", "cp874"):
