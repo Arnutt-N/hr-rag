@@ -280,6 +280,51 @@ async def index_document(
         }, ensure_ascii=False)
 
 
+@mcp.tool()
+async def generate_document(
+    doc_type: str,
+    topic: str,
+    requirements: List[str],
+    reference_category: Optional[str] = None
+) -> str:
+    """
+    Generate a new document based on existing knowledge and requirements.
+    
+    Args:
+        doc_type: Document type (policy, procedure, memo, announcement)
+        topic: Document topic/title
+        requirements: List of requirements/content points
+        reference_category: Optional category to search for references
+    
+    Returns:
+        JSON string with generated document
+    """
+    from app.services.document_generation import get_document_generation_service
+    
+    try:
+        # Get generation service
+        gen_service = get_document_generation_service()
+        
+        # Generate document
+        result = await gen_service.generate_document(
+            doc_type=doc_type,
+            topic=topic,
+            requirements=requirements,
+            collection_name=f"hr_{reference_category}" if reference_category else "hr_documents"
+        )
+        
+        return json.dumps({
+            "success": True,
+            "document": result
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
 # ============================================
 # RESOURCES
 # ============================================
