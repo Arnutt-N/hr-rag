@@ -1,971 +1,569 @@
-"""Admin Router - System Administration & Management
+# ==================== KNOWLEDGE BASE MANAGEMENT ====================
+# Central RAG repository for HR documents
 
-Protected endpoints for system administration:
-- User Management (list, view, enable/disable, reset password, view history)
-- System Analytics (stats, charts, most active users)
-- Content Management (projects, documents, logs)
-- Settings Management (LLM, rate limits, feature flags)
-- Security (login attempts, auth tracking, API key usage)
-
-Requires: Admin role
-"""
-
-from datetime import datetime, timedelta
-from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_, or_, delete
-from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, EmailStr
-
-from app.models.database import (
-    User, Project, Document, ChatSession, ChatMessage,
-    get_db, UserRole
-)
-from app.core.security import (
-    get_current_user,
-    get_password_hash,
-)
-from app.core.logging import get_logger
-
-logger = get_logger(__name__)
-
-router = APIRouter(prefix="/admin", tags=["admin"])
+class KnowledgeCategoryCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    slug: Optional[str] = None
+    parent_id: Optional[int] = None
 
 
-# ==================== DEPENDENCIES ====================
-
-async def require_admin(current_user: User = Depends(get_current_user)):
-    """Require admin role to access admin endpoints"""
-    if current_user.role != UserRole.ADMIN:
-        logger.warning(
-            "admin_access_denied",
-            user_id=current_user.id,
-            username=current_user.username,
-            role=current_user.role.value,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    logger.info("admin_access_granted", user_id=current_user.id, username=current_user.username)
-    return current_user
-
-
-# ==================== PAGINATION SCHEMA ====================
-
-class PaginatedResponse(BaseModel):
-    items: List[dict]
-    total: int
-    page: int
-    page_size: int
-    total_pages: int
-
-
-def paginate(items: List, total: int, page: int, page_size: int) -> PaginatedResponse:
-    return PaginatedResponse(
-        items=items,
-        total=total,
-        page=page,
-        page_size=page_size,
-        total_pages=(total + page_size - 1) // page_size
-    )
-
-
-# ==================== USER MANAGEMENT ====================
-
-class UserDetailResponse(BaseModel):
+class KnowledgeCategoryResponse(BaseModel):
     id: int
-    email: str
-    username: str
-    full_name: Optional[str]
-    role: str
-    is_member: bool
+    name: str
+    description: Optional[str]
+    slug: str
+    parent_id: Optional[int]
     is_active: bool
-    preferred_llm_provider: str
-    preferred_embedding_model: str
+    document_count: int
     created_at: datetime
-    last_login: Optional[datetime]
-    api_keys_count: int
-    projects_count: int
-    chat_sessions_count: int
 
 
-class UserListItem(BaseModel):
+class KnowledgeDocumentCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    category_id: Optional[int] = None
+    doc_type: Optional[str] = None  # policy, handbook, guideline, procedure
+    department: Optional[str] = None
+    tags: List[str] = []
+    is_public: bool = True
+    allowed_roles: List[str] = ["admin", "member", "user"]
+    effective_date: Optional[datetime] = None
+    expiry_date: Optional[datetime] = None
+
+
+class KnowledgeDocumentResponse(BaseModel):
     id: int
-    email: str
-    username: str
-    full_name: Optional[str]
-    role: str
-    is_member: bool
-    is_active: bool
+    title: str
+    description: Optional[str]
+    filename: str
+    original_filename: str
+    file_type: str
+    file_size: int
+    category_id: Optional[int]
+    category_name: Optional[str]
+    doc_type: Optional[str]
+    department: Optional[str]
+    tags: List[str]
+    is_public: bool
+    is_indexed: bool
+    chunk_count: int
+    language: str
+    version: str
+    effective_date: Optional[datetime]
+    expiry_date: Optional[datetime]
     created_at: datetime
-    projects_count: int
-    chat_sessions_count: int
+    updated_at: datetime
 
 
-class PasswordResetRequest(BaseModel):
-    user_id: int
-    new_password: str
+class KnowledgeBaseStats(BaseModel):
+    total_documents: int
+    total_categories: int
+    indexed_documents: int
+    total_chunks: int
+    by_category: List[dict]
+    by_doc_type: List[dict]
 
 
-class UserStatusUpdate(BaseModel):
-    user_id: int
-    is_active: bool
+# -------------------- CATEGORY MANAGEMENT --------------------
 
-
-@router.get("/users", response_model=PaginatedResponse)
-async def list_users(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: Optional[str] = None,
-    role: Optional[str] = None,
-    is_active: Optional[bool] = None,
+@router.post("/knowledge/categories", response_model=KnowledgeCategoryResponse)
+async def create_knowledge_category(
+    payload: KnowledgeCategoryCreate,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """List all users with pagination and filters"""
-    query = select(User)
-    count_query = select(func.count(User.id))
+    """Create a new knowledge category"""
+    # Auto-generate slug if not provided
+    slug = payload.slug or payload.name.lower().replace(" ", "-").replace("_", "-")
     
-    # Apply filters
+    # Check for duplicate slug
+    existing = await db.scalar(select(KnowledgeCategory).where(KnowledgeCategory.slug == slug))
+    if existing:
+        raise HTTPException(status_code=400, detail="Category slug already exists")
+    
+    category = KnowledgeCategory(
+        name=payload.name,
+        description=payload.description,
+        slug=slug,
+        parent_id=payload.parent_id,
+        is_active=True
+    )
+    db.add(category)
+    await db.commit()
+    await db.refresh(category)
+    
+    # Count documents
+    doc_count = await db.scalar(
+        select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.category_id == category.id)
+    )
+    
+    return KnowledgeCategoryResponse(
+        id=category.id,
+        name=category.name,
+        description=category.description,
+        slug=category.slug,
+        parent_id=category.parent_id,
+        is_active=category.is_active,
+        document_count=doc_count or 0,
+        created_at=category.created_at
+    )
+
+
+@router.get("/knowledge/categories", response_model=List[KnowledgeCategoryResponse])
+async def list_knowledge_categories(
+    include_inactive: bool = False,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all knowledge categories"""
+    query = select(KnowledgeCategory)
+    if not include_inactive:
+        query = query.where(KnowledgeCategory.is_active == True)
+    query = query.order_by(KnowledgeCategory.name)
+    
+    result = await db.execute(query)
+    categories = result.scalars().all()
+    
+    response = []
+    for cat in categories:
+        doc_count = await db.scalar(
+            select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.category_id == cat.id)
+        )
+        response.append(KnowledgeCategoryResponse(
+            id=cat.id,
+            name=cat.name,
+            description=cat.description,
+            slug=cat.slug,
+            parent_id=cat.parent_id,
+            is_active=cat.is_active,
+            document_count=doc_count or 0,
+            created_at=cat.created_at
+        ))
+    
+    return response
+
+
+@router.put("/knowledge/categories/{category_id}", response_model=KnowledgeCategoryResponse)
+async def update_knowledge_category(
+    category_id: int,
+    payload: KnowledgeCategoryCreate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update a knowledge category"""
+    result = await db.execute(
+        select(KnowledgeCategory).where(KnowledgeCategory.id == category_id)
+    )
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    category.name = payload.name
+    category.description = payload.description
+    if payload.slug:
+        category.slug = payload.slug
+    if payload.parent_id is not None:
+        category.parent_id = payload.parent_id
+    
+    await db.commit()
+    await db.refresh(category)
+    
+    doc_count = await db.scalar(
+        select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.category_id == category.id)
+    )
+    
+    return KnowledgeCategoryResponse(
+        id=category.id,
+        name=category.name,
+        description=category.description,
+        slug=category.slug,
+        parent_id=category.parent_id,
+        is_active=category.is_active,
+        document_count=doc_count or 0,
+        created_at=category.created_at
+    )
+
+
+@router.delete("/knowledge/categories/{category_id}")
+async def delete_knowledge_category(
+    category_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a knowledge category (soft delete by setting inactive)"""
+    result = await db.execute(
+        select(KnowledgeCategory).where(KnowledgeCategory.id == category_id)
+    )
+    category = result.scalar_one_or_none()
+    
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    # Check if category has documents
+    doc_count = await db.scalar(
+        select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.category_id == category_id)
+    )
+    
+    if doc_count > 0:
+        # Soft delete - set inactive
+        category.is_active = False
+        await db.commit()
+        return {"message": f"Category deactivated (has {doc_count} documents)"}
+    else:
+        # Hard delete if no documents
+        await db.delete(category)
+        await db.commit()
+        return {"message": "Category deleted successfully"}
+
+
+# -------------------- DOCUMENT MANAGEMENT --------------------
+
+@router.get("/knowledge/documents", response_model=PaginatedResponse)
+async def list_knowledge_documents(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = None,
+    category_id: Optional[int] = None,
+    doc_type: Optional[str] = None,
+    department: Optional[str] = None,
+    is_indexed: Optional[bool] = None,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List all knowledge base documents"""
+    query = select(KnowledgeDocument).options(selectinload(KnowledgeDocument.category))
+    count_query = select(func.count(KnowledgeDocument.id))
+    
     conditions = []
     if search:
-        # Use parameterized query to prevent SQL injection
         search_lower = search.lower()
         conditions.append(or_(
-            func.lower(User.email).contains(search_lower),
-            func.lower(User.username).contains(search_lower),
-            func.lower(User.full_name).contains(search_lower)
+            func.lower(KnowledgeDocument.title).contains(search_lower),
+            func.lower(KnowledgeDocument.description).contains(search_lower),
+            func.lower(KnowledgeDocument.content).contains(search_lower)
         ))
-    if role:
-        conditions.append(User.role == role)
-    if is_active is not None:
-        conditions.append(User.is_active == is_active)
+    if category_id:
+        conditions.append(KnowledgeDocument.category_id == category_id)
+    if doc_type:
+        conditions.append(KnowledgeDocument.doc_type == doc_type)
+    if department:
+        conditions.append(KnowledgeDocument.department == department)
+    if is_indexed is not None:
+        conditions.append(KnowledgeDocument.is_indexed == is_indexed)
     
     if conditions:
         query = query.where(and_(*conditions))
         count_query = count_query.where(and_(*conditions))
     
-    # Get total count
-    total = await db.scalar(count_query)
-    
-    # Get paginated results with counts
-    offset = (page - 1) * page_size
-    query = query.order_by(desc(User.created_at)).offset(offset).limit(page_size)
-    result = await db.execute(query)
-    users = result.scalars().all()
-    
-    # Get counts for each user
-    user_items = []
-    for user in users:
-        # Count projects
-        projects_count = await db.scalar(
-            select(func.count(Project.id)).where(Project.owner_id == user.id)
-        )
-        # Count chat sessions
-        sessions_count = await db.scalar(
-            select(func.count(ChatSession.id)).where(ChatSession.user_id == user.id)
-        )
-        
-        user_items.append({
-            "id": user.id,
-            "email": user.email,
-            "username": user.username,
-            "full_name": user.full_name,
-            "role": user.role.value if user.role else "user",
-            "is_member": user.is_member,
-            "is_active": user.is_active,
-            "created_at": user.created_at,
-            "projects_count": projects_count or 0,
-            "chat_sessions_count": sessions_count or 0,
-        })
-    
-    return paginate(user_items, total or 0, page, page_size)
-
-
-@router.get("/users/{user_id}", response_model=UserDetailResponse)
-async def get_user_details(
-    user_id: int,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get detailed user information"""
-    result = await db.execute(
-        select(User).where(User.id == user_id)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Count projects
-    projects_count = await db.scalar(
-        select(func.count(Project.id)).where(Project.owner_id == user.id)
-    )
-    
-    # Count chat sessions
-    sessions_count = await db.scalar(
-        select(func.count(ChatSession.id)).where(ChatSession.user_id == user.id)
-    )
-    
-    # For API keys count - would need to check keys table
-    # Assuming 0 for now unless there's a keys relationship
-    api_keys_count = 0
-    
-    return UserDetailResponse(
-        id=user.id,
-        email=user.email,
-        username=user.username,
-        full_name=user.full_name,
-        role=user.role.value if user.role else "user",
-        is_member=user.is_member,
-        is_active=user.is_active,
-        preferred_llm_provider=user.preferred_llm_provider.value if user.preferred_llm_provider else "openai",
-        preferred_embedding_model=user.preferred_embedding_model,
-        created_at=user.created_at,
-        last_login=user.updated_at,  # Using updated_at as proxy for last activity
-        api_keys_count=api_keys_count,
-        projects_count=projects_count or 0,
-        chat_sessions_count=sessions_count or 0,
-    )
-
-
-@router.post("/users/reset-password")
-async def reset_user_password(
-    payload: PasswordResetRequest,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Reset user password"""
-    result = await db.execute(
-        select(User).where(User.id == payload.user_id)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    user.hashed_password = get_password_hash(payload.new_password)
-    await db.commit()
-    
-    return {"message": "Password reset successfully"}
-
-
-@router.post("/users/toggle-status")
-async def toggle_user_status(
-    payload: UserStatusUpdate,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Enable or disable a user"""
-    result = await db.execute(
-        select(User).where(User.id == payload.user_id)
-    )
-    user = result.scalar_one_or_none()
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    user.is_active = payload.is_active
-    await db.commit()
-    
-    return {"message": f"User {'enabled' if payload.is_active else 'disabled'}"}
-
-
-@router.get("/users/{user_id}/chat-sessions", response_model=PaginatedResponse)
-async def get_user_chat_sessions(
-    user_id: int,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get user's chat history"""
-    # Verify user exists
-    user_result = await db.execute(select(User).where(User.id == user_id))
-    if not user_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get sessions
-    count_query = select(func.count(ChatSession.id)).where(ChatSession.user_id == user_id)
     total = await db.scalar(count_query)
     
     offset = (page - 1) * page_size
-    query = (
-        select(ChatSession)
-        .where(ChatSession.user_id == user_id)
-        .order_by(desc(ChatSession.created_at))
-        .offset(offset)
-        .limit(page_size)
-    )
-    result = await db.execute(query)
-    sessions = result.scalars().all()
-    
-    session_items = []
-    for session in sessions:
-        # Get last message preview
-        last_msg_result = await db.execute(
-            select(ChatMessage)
-            .where(ChatMessage.session_id == session.id)
-            .order_by(desc(ChatMessage.created_at))
-            .limit(1)
-        )
-        last_msg = last_msg_result.scalar_one_or_none()
-        
-        # Count messages
-        msg_count = await db.scalar(
-            select(func.count(ChatMessage.id)).where(ChatMessage.session_id == session.id)
-        )
-        
-        session_items.append({
-            "id": session.id,
-            "title": session.title,
-            "project_id": session.project_id,
-            "created_at": session.created_at,
-            "updated_at": session.updated_at,
-            "message_count": msg_count or 0,
-            "last_message": last_msg.content[:100] if last_msg else None,
-        })
-    
-    return paginate(session_items, total or 0, page, page_size)
-
-
-@router.get("/users/{user_id}/projects", response_model=PaginatedResponse)
-async def get_user_projects(
-    user_id: int,
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get user's projects"""
-    # Verify user exists
-    user_result = await db.execute(select(User).where(User.id == user_id))
-    if not user_result.scalar_one_or_none():
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    count_query = select(func.count(Project.id)).where(Project.owner_id == user_id)
-    total = await db.scalar(count_query)
-    
-    offset = (page - 1) * page_size
-    query = (
-        select(Project)
-        .where(Project.owner_id == user_id)
-        .order_by(desc(Project.created_at))
-        .offset(offset)
-        .limit(page_size)
-    )
-    result = await db.execute(query)
-    projects = result.scalars().all()
-    
-    project_items = []
-    for project in projects:
-        doc_count = await db.scalar(
-            select(func.count(Document.id)).where(Document.project_id == project.id)
-        )
-        session_count = await db.scalar(
-            select(func.count(ChatSession.id)).where(ChatSession.project_id == project.id)
-        )
-        
-        project_items.append({
-            "id": project.id,
-            "name": project.name,
-            "description": project.description,
-            "is_public": project.is_public,
-            "vector_collection": project.vector_collection,
-            "created_at": project.created_at,
-            "updated_at": project.updated_at,
-            "document_count": doc_count or 0,
-            "chat_session_count": session_count or 0,
-        })
-    
-    return paginate(project_items, total or 0, page, page_size)
-
-
-# ==================== SYSTEM ANALYTICS ====================
-
-class SystemStats(BaseModel):
-    total_users: int
-    total_members: int
-    total_projects: int
-    total_documents: int
-    total_chat_sessions: int
-    total_chat_messages: int
-
-
-class DailyStat(BaseModel):
-    date: str
-    queries: int
-    sessions: int
-    new_users: int
-    new_documents: int
-
-
-class AnalyticsOverview(BaseModel):
-    stats: SystemStats
-    daily_stats: List[DailyStat]
-    top_active_users: List[dict]
-    top_llm_providers: List[dict]
-
-
-@router.get("/analytics", response_model=AnalyticsOverview)
-async def get_system_analytics(
-    days: int = Query(30, ge=7, le=90),
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get system analytics overview"""
-    
-    # Basic stats
-    total_users = await db.scalar(select(func.count(User.id)))
-    total_members = await db.scalar(select(func.count(User.id)).where(User.is_member == True))
-    total_projects = await db.scalar(select(func.count(Project.id)))
-    total_documents = await db.scalar(select(func.count(Document.id)))
-    total_chat_sessions = await db.scalar(select(func.count(ChatSession.id)))
-    total_chat_messages = await db.scalar(select(func.count(ChatMessage.id)))
-    
-    stats = SystemStats(
-        total_users=total_users or 0,
-        total_members=total_members or 0,
-        total_projects=total_projects or 0,
-        total_documents=total_documents or 0,
-        total_chat_sessions=total_chat_sessions or 0,
-        total_chat_messages=total_chat_messages or 0,
-    )
-    
-    # Daily stats for the past N days
-    daily_stats = []
-    for i in range(days):
-        date = datetime.utcnow() - timedelta(days=i)
-        date_str = date.strftime("%Y-%m-%d")
-        start_of_day = date.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_of_day = start_of_day + timedelta(days=1)
-        
-        # Count queries (chat messages from users)
-        queries = await db.scalar(
-            select(func.count(ChatMessage.id))
-            .where(
-                and_(
-                    ChatMessage.role == "user",
-                    ChatMessage.created_at >= start_of_day,
-                    ChatMessage.created_at < end_of_day
-                )
-            )
-        )
-        
-        # Count sessions
-        sessions = await db.scalar(
-            select(func.count(ChatSession.id))
-            .where(
-                and_(
-                    ChatSession.created_at >= start_of_day,
-                    ChatSession.created_at < end_of_day
-                )
-            )
-        )
-        
-        # Count new users
-        new_users = await db.scalar(
-            select(func.count(User.id))
-            .where(
-                and_(
-                    User.created_at >= start_of_day,
-                    User.created_at < end_of_day
-                )
-            )
-        )
-        
-        # Count new documents
-        new_docs = await db.scalar(
-            select(func.count(Document.id))
-            .where(
-                and_(
-                    Document.created_at >= start_of_day,
-                    Document.created_at < end_of_day
-                )
-            )
-        )
-        
-        daily_stats.append(DailyStat(
-            date=date_str,
-            queries=queries or 0,
-            sessions=sessions or 0,
-            new_users=new_users or 0,
-            new_documents=new_docs or 0,
-        ))
-    
-    daily_stats.reverse()
-    
-    # Top active users (by chat messages)
-    top_users_query = (
-        select(User.id, User.username, User.email, func.count(ChatMessage.id).label("msg_count"))
-        .join(ChatMessage, ChatMessage.user_id == User.id)
-        .group_by(User.id, User.username, User.email)
-        .order_by(desc("msg_count"))
-        .limit(10)
-    )
-    result = await db.execute(top_users_query)
-    top_users = []
-    for row in result.all():
-        top_users.append({
-            "user_id": row.id,
-            "username": row.username,
-            "email": row.email,
-            "message_count": row.msg_count,
-        })
-    
-    # Top LLM providers (by chat messages)
-    top_providers_query = (
-        select(ChatMessage.llm_provider, func.count(ChatMessage.id).label("count"))
-        .where(ChatMessage.llm_provider.isnot(None))
-        .group_by(ChatMessage.llm_provider)
-        .order_by(desc("count"))
-    )
-    result = await db.execute(top_providers_query)
-    top_providers = []
-    for row in result.all():
-        if row.llm_provider:
-            top_providers.append({
-                "provider": row.llm_provider,
-                "count": row.count,
-            })
-    
-    return AnalyticsOverview(
-        stats=stats,
-        daily_stats=daily_stats,
-        top_active_users=top_users,
-        top_llm_providers=top_providers,
-    )
-
-
-@router.get("/analytics/queries")
-async def get_query_stats(
-    period: str = Query("day", regex="^(day|week|month)$"),
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get query statistics per day/week/month"""
-    
-    if period == "day":
-        # Last 30 days hourly or daily
-        days = 30
-        date_format = "%Y-%m-%d"
-    elif period == "week":
-        # Last 12 weeks
-        days = 84
-        date_format = "%Y-W%W"
-    else:
-        # Last 12 months
-        days = 365
-        date_format = "%Y-%m"
-    
-    results = []
-    for i in range(min(days, 30 if period == "day" else (12 if period == "week" else 12))):
-        date = datetime.utcnow() - timedelta(days=i)
-        
-        if period == "day":
-            start = date.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = start + timedelta(days=1)
-            label = date.strftime("%Y-%m-%d")
-        elif period == "week":
-            start = date - timedelta(days=date.weekday())
-            start = start.replace(hour=0, minute=0, second=0, microsecond=0)
-            end = start + timedelta(days=7)
-            label = date.strftime("%Y-W%W")
-        else:
-            start = date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-            if date.month == 12:
-                end = start.replace(year=start.year + 1, month=1)
-            else:
-                end = start.replace(month=start.month + 1)
-            label = date.strftime("%Y-%m")
-        
-        count = await db.scalar(
-            select(func.count(ChatMessage.id))
-            .where(
-                and_(
-                    ChatMessage.role == "user",
-                    ChatMessage.created_at >= start,
-                    ChatMessage.created_at < end
-                )
-            )
-        )
-        
-        results.append({"period": label, "count": count or 0})
-    
-    results.reverse()
-    return {"period": period, "data": results}
-
-
-# ==================== CONTENT MANAGEMENT ====================
-
-class ProjectListItem(BaseModel):
-    id: int
-    name: str
-    description: Optional[str]
-    owner_id: int
-    owner_email: str
-    is_public: bool
-    vector_collection: str
-    created_at: datetime
-    document_count: int
-    chat_session_count: int
-
-
-class DocumentListItem(BaseModel):
-    id: int
-    filename: str
-    original_filename: str
-    file_type: str
-    file_size: int
-    project_id: int
-    project_name: str
-    owner_email: str
-    is_indexed: bool
-    chunk_count: int
-    created_at: datetime
-
-
-@router.get("/projects", response_model=PaginatedResponse)
-async def list_all_projects(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: Optional[str] = None,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all projects across all users"""
-    query = (
-        select(Project)
-        .join(User, Project.owner_id == User.id)
-        .options(selectinload(Project.owner))
-    )
-    count_query = select(func.count(Project.id))
-    
-    if search:
-        # Use parameterized query to prevent SQL injection
-        search_lower = search.lower()
-        search_filter = or_(
-            func.lower(Project.name).contains(search_lower),
-            func.lower(Project.description).contains(search_lower),
-            func.lower(User.email).contains(search_lower)
-        )
-        query = query.where(search_filter)
-        count_query = count_query.join(User).where(search_filter)
-    
-    total = await db.scalar(count_query)
-    
-    offset = (page - 1) * page_size
-    query = query.order_by(desc(Project.created_at)).offset(offset).limit(page_size)
-    result = await db.execute(query)
-    projects = result.scalars().all()
-    
-    items = []
-    for project in projects:
-        doc_count = await db.scalar(
-            select(func.count(Document.id)).where(Document.project_id == project.id)
-        )
-        session_count = await db.scalar(
-            select(func.count(ChatSession.id)).where(ChatSession.project_id == project.id)
-        )
-        
-        # Get owner email
-        owner_result = await db.execute(select(User).where(User.id == project.owner_id))
-        owner = owner_result.scalar_one_or_none()
-        
-        items.append({
-            "id": project.id,
-            "name": project.name,
-            "description": project.description,
-            "owner_id": project.owner_id,
-            "owner_email": owner.email if owner else "Unknown",
-            "is_public": project.is_public,
-            "vector_collection": project.vector_collection,
-            "created_at": project.created_at,
-            "document_count": doc_count or 0,
-            "chat_session_count": session_count or 0,
-        })
-    
-    return paginate(items, total or 0, page, page_size)
-
-
-@router.get("/documents", response_model=PaginatedResponse)
-async def list_all_documents(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    search: Optional[str] = None,
-    file_type: Optional[str] = None,
-    project_id: Optional[int] = None,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """List all documents across all users"""
-    query = (
-        select(Document)
-        .join(Project, Document.project_id == Project.id)
-        .join(User, Project.owner_id == User.id)
-    )
-    count_query = select(func.count(Document.id))
-    
-    conditions = []
-    if search:
-        # Use parameterized query to prevent SQL injection
-        search_lower = search.lower()
-        conditions.append(or_(
-            func.lower(Document.filename).contains(search_lower),
-            func.lower(Document.original_filename).contains(search_lower),
-            func.lower(Document.content).contains(search_lower)
-        ))
-    if file_type:
-        conditions.append(Document.file_type == file_type)
-    if project_id:
-        conditions.append(Document.project_id == project_id)
-    
-    if conditions:
-        query = query.where(and_(*conditions))
-        count_query = count_query.join(Project).where(and_(*conditions))
-    
-    total = await db.scalar(count_query)
-    
-    offset = (page - 1) * page_size
-    query = query.order_by(desc(Document.created_at)).offset(offset).limit(page_size)
+    query = query.order_by(desc(KnowledgeDocument.created_at)).offset(offset).limit(page_size)
     result = await db.execute(query)
     documents = result.scalars().all()
     
     items = []
     for doc in documents:
-        # Get project and owner
-        project_result = await db.execute(select(Project).where(Project.id == doc.project_id))
-        project = project_result.scalar_one_or_none()
-        
-        owner_email = "Unknown"
-        if project:
-            owner_result = await db.execute(select(User).where(User.id == project.owner_id))
-            owner = owner_result.scalar_one_or_none()
-            owner_email = owner.email if owner else "Unknown"
-        
         items.append({
             "id": doc.id,
+            "title": doc.title,
+            "description": doc.description,
             "filename": doc.filename,
             "original_filename": doc.original_filename,
             "file_type": doc.file_type,
             "file_size": doc.file_size,
-            "project_id": doc.project_id,
-            "project_name": project.name if project else "Unknown",
-            "owner_email": owner_email,
+            "category_id": doc.category_id,
+            "category_name": doc.category.name if doc.category else None,
+            "doc_type": doc.doc_type,
+            "department": doc.department,
+            "tags": doc.tags or [],
+            "is_public": doc.is_public,
             "is_indexed": doc.is_indexed,
             "chunk_count": doc.chunk_count,
+            "language": doc.language,
+            "version": doc.version,
+            "effective_date": doc.effective_date,
+            "expiry_date": doc.expiry_date,
             "created_at": doc.created_at,
+            "updated_at": doc.updated_at
         })
     
     return paginate(items, total or 0, page, page_size)
 
 
-@router.delete("/documents/{document_id}")
-async def delete_document(
+@router.get("/knowledge/documents/{document_id}")
+async def get_knowledge_document(
     document_id: int,
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Delete a document"""
+    """Get detailed knowledge document"""
     result = await db.execute(
-        select(Document).where(Document.id == document_id)
+        select(KnowledgeDocument).options(selectinload(KnowledgeDocument.category))
+        .where(KnowledgeDocument.id == document_id)
     )
-    document = result.scalar_one_or_none()
+    doc = result.scalar_one_or_none()
     
-    if not document:
+    if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    await db.delete(document)
+    return {
+        "id": doc.id,
+        "title": doc.title,
+        "description": doc.description,
+        "filename": doc.filename,
+        "original_filename": doc.original_filename,
+        "file_type": doc.file_type,
+        "file_size": doc.file_size,
+        "content": doc.content[:5000] if doc.content else None,  # Limit content preview
+        "content_summary": doc.content_summary,
+        "category_id": doc.category_id,
+        "category_name": doc.category.name if doc.category else None,
+        "doc_type": doc.doc_type,
+        "department": doc.department,
+        "tags": doc.tags or [],
+        "is_public": doc.is_public,
+        "allowed_roles": doc.allowed_roles or [],
+        "is_indexed": doc.is_indexed,
+        "chunk_count": doc.chunk_count,
+        "vector_ids": doc.vector_ids or [],
+        "language": doc.language,
+        "version": doc.version,
+        "effective_date": doc.effective_date,
+        "expiry_date": doc.expiry_date,
+        "created_at": doc.created_at,
+        "updated_at": doc.updated_at
+    }
+
+
+@router.put("/knowledge/documents/{document_id}")
+async def update_knowledge_document(
+    document_id: int,
+    payload: KnowledgeDocumentCreate,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Update knowledge document metadata"""
+    result = await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    doc.title = payload.title
+    doc.description = payload.description
+    doc.category_id = payload.category_id
+    doc.doc_type = payload.doc_type
+    doc.department = payload.department
+    doc.tags = payload.tags
+    doc.is_public = payload.is_public
+    doc.allowed_roles = payload.allowed_roles
+    doc.effective_date = payload.effective_date
+    doc.expiry_date = payload.expiry_date
+    
+    await db.commit()
+    await db.refresh(doc)
+    
+    return {"message": "Document updated successfully", "document_id": doc.id}
+
+
+@router.delete("/knowledge/documents/{document_id}")
+async def delete_knowledge_document(
+    document_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Delete a knowledge document"""
+    result = await db.execute(
+        select(KnowledgeDocument).where(KnowledgeDocument.id == document_id)
+    )
+    doc = result.scalar_one_or_none()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # TODO: Also delete vectors from Qdrant
+    # vector_store.delete_vectors(doc.vector_ids)
+    
+    await db.delete(doc)
     await db.commit()
     
     return {"message": "Document deleted successfully"}
 
 
-# ==================== SYSTEM SETTINGS ====================
+# -------------------- STATISTICS & ANALYTICS --------------------
 
-class SystemSettings(BaseModel):
-    default_llm_provider: str
-    default_embedding_model: str
-    system_rate_limit: int
-    maintenance_mode: bool
-    feature_flags: dict
-
-
-# In-memory settings (in production, store in database)
-_system_settings = {
-    "default_llm_provider": "openai",
-    "default_embedding_model": "BAAI/bge-m3",
-    "system_rate_limit": 100,
-    "maintenance_mode": False,
-    "feature_flags": {
-        "guest_access": True,
-        "public_projects": True,
-        "api_key_management": True,
-        "evaluation": True,
-    }
-}
-
-
-@router.get("/settings", response_model=SystemSettings)
-async def get_system_settings(
-    admin: User = Depends(require_admin)
+@router.get("/knowledge/stats", response_model=KnowledgeBaseStats)
+async def get_knowledge_base_stats(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
 ):
-    """Get system settings"""
-    return SystemSettings(**_system_settings)
-
-
-@router.post("/settings")
-async def update_system_settings(
-    settings: SystemSettings,
-    admin: User = Depends(require_admin)
-):
-    """Update system settings"""
-    global _system_settings
-    _system_settings = settings.dict()
-    return {"message": "Settings updated successfully"}
-
-
-# ==================== SECURITY & LOGS ====================
-
-class LoginAttempt(BaseModel):
-    id: int
-    user_id: Optional[int]
-    username: str
-    success: bool
-    ip_address: Optional[str]
-    timestamp: datetime
-
-
-class LogEntry(BaseModel):
-    id: int
-    level: str
-    message: str
-    user_id: Optional[int]
-    endpoint: Optional[str]
-    timestamp: datetime
-
-
-# In-memory logs (in production, store in database)
-_login_attempts: List[LoginAttempt] = []
-_system_logs: List[LogEntry] = []
-
-
-def log_login_attempt(username: str, success: bool, user_id: Optional[int] = None, ip: Optional[str] = None):
-    """Log a login attempt - called from auth router"""
-    attempt = LoginAttempt(
-        id=len(_login_attempts) + 1,
-        user_id=user_id,
-        username=username,
-        success=success,
-        ip_address=ip,
-        timestamp=datetime.utcnow()
+    """Get knowledge base statistics"""
+    total_docs = await db.scalar(select(func.count(KnowledgeDocument.id)))
+    total_categories = await db.scalar(select(func.count(KnowledgeCategory.id)))
+    indexed_docs = await db.scalar(
+        select(func.count(KnowledgeDocument.id)).where(KnowledgeDocument.is_indexed == True)
     )
-    _login_attempts.append(attempt)
-    # Keep only last 1000 attempts
-    if len(_login_attempts) > 1000:
-        _login_attempts.pop(0)
-
-
-def log_system_event(level: str, message: str, user_id: Optional[int] = None, endpoint: Optional[str] = None):
-    """Log a system event"""
-    entry = LogEntry(
-        id=len(_system_logs) + 1,
-        level=level,
-        message=message,
-        user_id=user_id,
-        endpoint=endpoint,
-        timestamp=datetime.utcnow()
+    total_chunks = await db.scalar(select(func.sum(KnowledgeDocument.chunk_count))) or 0
+    
+    # By category
+    by_category = []
+    cat_result = await db.execute(
+        select(KnowledgeCategory.id, KnowledgeCategory.name, func.count(KnowledgeDocument.id))
+        .outerjoin(KnowledgeDocument, KnowledgeDocument.category_id == KnowledgeCategory.id)
+        .group_by(KnowledgeCategory.id, KnowledgeCategory.name)
     )
-    _system_logs.append(entry)
-    # Keep only last 1000 logs
-    if len(_system_logs) > 1000:
-        _system_logs.pop(0)
+    for row in cat_result.all():
+        by_category.append({
+            "category_id": row[0],
+            "category_name": row[1],
+            "document_count": row[2] or 0
+        })
+    
+    # By document type
+    by_doc_type = []
+    type_result = await db.execute(
+        select(KnowledgeDocument.doc_type, func.count(KnowledgeDocument.id))
+        .group_by(KnowledgeDocument.doc_type)
+    )
+    for row in type_result.all():
+        if row[0]:  # Skip null
+            by_doc_type.append({
+                "doc_type": row[0],
+                "document_count": row[1] or 0
+            })
+    
+    return KnowledgeBaseStats(
+        total_documents=total_docs or 0,
+        total_categories=total_categories or 0,
+        indexed_documents=indexed_docs or 0,
+        total_chunks=total_chunks,
+        by_category=by_category,
+        by_doc_type=by_doc_type
+    )
 
 
-@router.get("/security/login-attempts", response_model=PaginatedResponse)
-async def get_login_attempts(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    success: Optional[bool] = None,
+@router.get("/knowledge/doc-types")
+async def list_document_types(
     admin: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    """Get login attempts log"""
-    # For now, return in-memory logs
-    # In production, query from database
-    filtered = _login_attempts
-    if success is not None:
-        filtered = [a for a in filtered if a.success == success]
+    """List available document types"""
+    # Predefined types + custom types from database
+    predefined = ["policy", "handbook", "guideline", "procedure", "regulation", 
+                  "memo", "announcement", "training", "form", "other"]
     
-    total = len(filtered)
-    offset = (page - 1) * page_size
-    items = filtered[offset:offset + page_size]
-    
-    return paginate([a.dict() for a in items], total, page, page_size)
-
-
-@router.get("/logs", response_model=PaginatedResponse)
-async def get_system_logs(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    level: Optional[str] = None,
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get system logs"""
-    filtered = _system_logs
-    if level:
-        filtered = [l for l in filtered if l.level == level]
-    
-    total = len(filtered)
-    offset = (page - 1) * page_size
-    items = filtered[offset:offset + page_size]
-    
-    return paginate([l.dict() for l in items], total, page, page_size)
-
-
-# ==================== EXPORT DATA ====================
-
-@router.get("/export/users")
-async def export_users(
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Export all users as CSV"""
-    result = await db.execute(select(User))
-    users = result.scalars().all()
-    
-    csv_lines = ["id,email,username,full_name,role,is_member,is_active,created_at"]
-    for user in users:
-        csv_lines.append(
-            f"{user.id},{user.email},{user.username},{user.full_name or ''},"
-            f"{user.role.value if user.role else 'user'},{user.is_member},{user.is_active},{user.created_at}"
-        )
-    
-    return {"csv": "\n".join(csv_lines)}
-
-
-@router.get("/export/documents")
-async def export_documents(
-    admin: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db)
-):
-    """Export all documents as CSV"""
     result = await db.execute(
-        select(Document)
-        .join(Project)
-        .join(User)
+        select(KnowledgeDocument.doc_type).distinct()
+        .where(KnowledgeDocument.doc_type.isnot(None))
     )
-    docs = result.scalars().all()
+    db_types = [row[0] for row in result.all() if row[0]]
     
-    csv_lines = ["id,filename,original_filename,file_type,file_size,project_id,owner_email,is_indexed,created_at"]
-    for doc in docs:
-        csv_lines.append(
-            f"{doc.id},{doc.filename},{doc.original_filename},{doc.file_type},"
-            f"{doc.file_size},{doc.project_id},{doc.owner_email if hasattr(doc, 'owner_email') else ''},"
-            f"{doc.is_indexed},{doc.created_at}"
-        )
+    all_types = list(set(predefined + db_types))
+    return {"doc_types": sorted(all_types)}
+
+
+@router.get("/knowledge/departments")
+async def list_departments(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """List departments from documents"""
+    predefined = ["HR", "IT", "Finance", "Legal", "Operations", "Marketing", 
+                  "Sales", "Admin", "General"]
     
-    return {"csv": "\n".join(csv_lines)}
+    result = await db.execute(
+        select(KnowledgeDocument.department).distinct()
+        .where(KnowledgeDocument.department.isnot(None))
+    )
+    db_depts = [row[0] for row in result.all() if row[0]]
+    
+    all_depts = list(set(predefined + db_depts))
+    return {"departments": sorted(all_depts)}# -------------------- KNOWLEDGE BASE UPLOAD --------------------
+
+from fastapi import File, Form, UploadFile
+from app.services.knowledge_base import knowledge_base_service
+
+@router.post("/knowledge/documents/upload")
+async def upload_knowledge_document(
+    file: UploadFile = File(...),
+    title: str = Form(...),
+    description: Optional[str] = Form(None),
+    category_id: Optional[int] = Form(None),
+    doc_type: Optional[str] = Form(None),
+    department: Optional[str] = Form(None),
+    tags: str = Form(""),  # Comma-separated
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Upload a document to knowledge base"""
+    
+    # Parse tags
+    tag_list = [t.strip() for t in tags.split(",") if t.strip()]
+    
+    # Upload document
+    doc = await knowledge_base_service.upload_document(
+        file=file,
+        title=title,
+        description=description,
+        category_id=category_id,
+        doc_type=doc_type,
+        department=department,
+        tags=tag_list,
+        created_by=admin.id,
+        db=db
+    )
+    
+    return {
+        "message": "Document uploaded successfully",
+        "document_id": doc.id,
+        "title": doc.title,
+        "file_size": doc.file_size,
+        "is_indexed": doc.is_indexed
+    }
+
+
+@router.post("/knowledge/documents/{document_id}/index")
+async def index_knowledge_document(
+    document_id: int,
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Index a document to vector database"""
+    result = await knowledge_base_service.index_document(document_id, db)
+    return result
+
+
+@router.post("/knowledge/reindex-all")
+async def reindex_all_knowledge_documents(
+    admin: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """Reindex all knowledge base documents"""
+    result = await knowledge_base_service.reindex_all_documents(db)
+    return result
+
+
+@router.post("/knowledge/search")
+async def search_knowledge_base(
+    query: str,
+    category_id: Optional[int] = None,
+    doc_type: Optional[str] = None,
+    department: Optional[str] = None,
+    limit: int = Query(5, ge=1, le=20),
+    admin: User = Depends(require_admin)
+):
+    """Search knowledge base (admin only)"""
+    results = await knowledge_base_service.search_knowledge_base(
+        query=query,
+        category_id=category_id,
+        doc_type=doc_type,
+        department=department,
+        limit=limit,
+        user_role="admin"
+    )
+    return {"query": query, "results": results}

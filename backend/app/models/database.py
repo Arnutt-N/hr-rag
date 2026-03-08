@@ -179,3 +179,89 @@ class ChatMessage(Base):
     
     # Relationships
     session = relationship("ChatSession", back_populates="messages")
+
+
+# ==================== KNOWLEDGE BASE (Central RAG Repository) ====================
+
+class KnowledgeCategory(Base):
+    """Category for organizing knowledge base documents"""
+    __tablename__ = "knowledge_categories"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text)
+    slug = Column(String(100), unique=True, index=True)
+    
+    # Hierarchy support
+    parent_id = Column(Integer, ForeignKey("knowledge_categories.id"), nullable=True)
+    
+    # Status
+    is_active = Column(Boolean, default=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relationships
+    documents = relationship("KnowledgeDocument", back_populates="category")
+    children = relationship("KnowledgeCategory", 
+                           backref="parent", 
+                           remote_side=[id],
+                           cascade="all, delete-orphan")
+
+
+class KnowledgeDocument(Base):
+    """Central knowledge base documents for RAG"""
+    __tablename__ = "knowledge_documents"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String(500), nullable=False)
+    description = Column(Text)
+    
+    # File info
+    filename = Column(String(255), nullable=False)
+    original_filename = Column(String(255), nullable=False)
+    file_type = Column(String(50))  # pdf, doc, docx, txt, md
+    file_size = Column(Integer)  # bytes
+    file_path = Column(String(500))  # Storage path
+    
+    # Content
+    content = Column(Text)  # Extracted text
+    content_summary = Column(Text)  # AI-generated summary
+    
+    # Category
+    category_id = Column(Integer, ForeignKey("knowledge_categories.id"), nullable=True)
+    
+    # Tags for flexible categorization
+    tags = Column(JSON, default=list)
+    
+    # Document type classification
+    doc_type = Column(String(100))  # policy, handbook, guideline, procedure, etc.
+    department = Column(String(100))  # HR, IT, Finance, etc.
+    
+    # Access control
+    is_public = Column(Boolean, default=True)
+    allowed_roles = Column(JSON, default=list)  # ["admin", "member", "user"]
+    
+    # Vector DB reference
+    vector_collection = Column(String(100), default="knowledge_base")
+    vector_ids = Column(JSON, default=list)  # List of vector IDs in Qdrant
+    
+    # Processing status
+    is_indexed = Column(Boolean, default=False)
+    chunk_count = Column(Integer, default=0)
+    
+    # Metadata
+    language = Column(String(10), default="th")  # th, en
+    version = Column(String(20), default="1.0")
+    effective_date = Column(DateTime, nullable=True)
+    expiry_date = Column(DateTime, nullable=True)
+    
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    
+    # Relationships
+    category = relationship("KnowledgeCategory", back_populates="documents")
+    creator = relationship("User")
