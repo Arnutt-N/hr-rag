@@ -98,7 +98,7 @@ jobs:
       
       - name: Install linters
         run: |
-          pip install ruff mypy black
+          pip install ruff mypy black types-redis types-requests
       
       - name: Run Ruff
         working-directory: backend
@@ -107,6 +107,10 @@ jobs:
       - name: Run Black check
         working-directory: backend
         run: black --check app/
+      
+      - name: Run mypy type check
+        working-directory: backend
+        run: mypy app/ --ignore-missing-imports
 
   security-scan:
     runs-on: ubuntu-latest

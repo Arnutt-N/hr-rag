@@ -45,7 +45,28 @@ slowapi>=0.1.9
 # Logging
 structlog>=24.1.0
 
+# Observability (OpenTelemetry)
+opentelemetry-api>=1.20.0
+opentelemetry-sdk>=1.20.0
+opentelemetry-exporter-otlp>=1.20.0
+opentelemetry-instrumentation-fastapi>=0.41b0
+opentelemetry-instrumentation-httpx>=0.41b0
+opentelemetry-instrumentation-redis>=0.41b0
+opentelemetry-instrumentation-asyncpg>=0.41b0
+
+# Background Tasks (Celery)
+celery[redis]>=5.3.0
+
+# Monitoring (Prometheus)
+prometheus-client>=0.19.0
+prometheus-fastapi-instrumentator>=6.1.0
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
+
+# Type Checking
+mypy>=1.8.0
+types-redis>=4.6.0
+types-requests>=2.31.0

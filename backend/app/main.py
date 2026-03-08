@@ -25,6 +25,7 @@ from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
 from app.core.request_id import RequestIDMiddleware
 from app.core.circuit_breaker import get_all_circuit_stats
+from app.core.telemetry import setup_telemetry, shutdown_telemetry
 from app.models.database import init_db
 from app.services.cache import get_cache_service
 

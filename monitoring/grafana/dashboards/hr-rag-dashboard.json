@@ -1,0 +1,125 @@
+{
+  "dashboard": {
+    "title": "HR-RAG Monitoring",
+    "tags": ["hr-rag", "monitoring"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "title": "Request Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(hr_rag_requests_total[5m])",
+            "legendFormat": "{{method}} {{endpoint}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Request Latency",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(hr_rag_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(hr_rag_request_latency_seconds_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "B"
+          }
+        ]
+      },
+      {
+        "title": "LLM Requests",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(hr_rag_llm_requests_total[5m])",
+            "legendFormat": "{{provider}} - {{model}}",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "LLM Latency",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(hr_rag_llm_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Active Users",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "hr_rag_active_users",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Total Documents",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "hr_rag_documents_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Total Vectors",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "hr_rag_vectors_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Chat Messages",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 16, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "hr_rag_chat_messages_total",
+            "refId": "A"
+          }
+        ]
+      },
+      {
+        "title": "Vector Search Latency",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(hr_rag_vector_search_latency_seconds_bucket[5m]))",
+            "legendFormat": "{{collection}} p95",
+            "refId": "A"
+          }
+        ]
+      }
+    ],
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 1,
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    }
+  }
+}
