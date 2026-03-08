@@ -704,6 +704,242 @@ async def research_proposal(
 
 
 # ============================================
+# SKILL MANAGEMENT TOOLS
+# ============================================
+
+@mcp.tool()
+async def skill_create(
+    name: str,
+    description: str,
+    author: str,
+    template: str = "basic",
+    tags: Optional[List[str]] = None,
+    dependencies: Optional[List[str]] = None
+) -> str:
+    """
+    สร้าง Skill ใหม่จาก Template
+    
+    Create a new skill from template.
+    
+    Args:
+        name: ชื่อ Skill
+        description: คำอธิบาย
+        author: ผู้สร้าง
+        template: Template (basic, api, mcp, agent)
+        tags: แท็ก
+        dependencies: Dependencies ที่ต้องการ
+    
+    Returns:
+        JSON with created skill info
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        skill_path = registry.create_skill(
+            name=name,
+            description=description,
+            author=author,
+            template=template,
+            tags=tags or [],
+            dependencies=dependencies or []
+        )
+        
+        return json.dumps({
+            "success": True,
+            "message": f"สร้าง Skill '{name}' สำเร็จ",
+            "skill_path": skill_path,
+            "template": template
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "message": "เกิดข้อผิดพลาดในการสร้าง Skill"
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def skill_import(skill_path: str) -> str:
+    """
+    Import Skill จาก Path
+    
+    Import skill from directory path.
+    
+    Args:
+        skill_path: พาธไปยังโฟลเดอร์ Skill
+    
+    Returns:
+        JSON with import result
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        skill = registry.import_skill(skill_path)
+        
+        return json.dumps({
+            "success": True,
+            "message": f"Import Skill '{skill.metadata.name}' สำเร็จ",
+            "skill_id": skill.metadata.name.lower().replace(" ", "_"),
+            "functions": list(skill.functions.keys())
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "message": "เกิดข้อผิดพลาดในการ Import Skill"
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def skill_use(
+    skill_id: str,
+    function_name: str = "main",
+    parameters: Optional[Dict[str, Any]] = None
+) -> str:
+    """
+    ใช้งาน Skill
+    
+    Execute a skill function.
+    
+    Args:
+        skill_id: ID ของ Skill
+        function_name: ชื่อฟังก์ชัน (default: main)
+        parameters: พารามิเตอร์สำหรับฟังก์ชัน
+    
+    Returns:
+        JSON with execution result
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        result = registry.use_skill(
+            skill_id=skill_id,
+            function_name=function_name,
+            **(parameters or {})
+        )
+        
+        return json.dumps({
+            "success": True,
+            "skill_id": skill_id,
+            "function": function_name,
+            "result": result
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e),
+            "message": f"เกิดข้อผิดพลาดในการใช้ Skill '{skill_id}'"
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def skill_list() -> str:
+    """
+    แสดงรายการ Skills ทั้งหมด
+    
+    List all registered skills.
+    
+    Returns:
+        JSON with skills list
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        skills = registry.list_skills()
+        
+        return json.dumps({
+            "success": True,
+            "total_skills": len(skills),
+            "skills": skills
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def skill_toggle(skill_id: str, enable: bool = True) -> str:
+    """
+    เปิด/ปิด Skill
+    
+    Enable or disable a skill.
+    
+    Args:
+        skill_id: ID ของ Skill
+        enable: True=เปิด, False=ปิด
+    
+    Returns:
+        JSON with result
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        
+        if enable:
+            registry.enable_skill(skill_id)
+            message = f"เปิดใช้งาน Skill '{skill_id}' แล้ว"
+        else:
+            registry.disable_skill(skill_id)
+            message = f"ปิดใช้งาน Skill '{skill_id}' แล้ว"
+        
+        return json.dumps({
+            "success": True,
+            "message": message,
+            "skill_id": skill_id,
+            "enabled": enable
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def skill_delete(skill_id: str) -> str:
+    """
+    ลบ Skill
+    
+    Delete a skill from registry.
+    
+    Args:
+        skill_id: ID ของ Skill
+    
+    Returns:
+        JSON with result
+    """
+    from app.services.skill_manager import get_skill_registry
+    
+    try:
+        registry = get_skill_registry()
+        registry.delete_skill(skill_id)
+        
+        return json.dumps({
+            "success": True,
+            "message": f"ลบ Skill '{skill_id}' แล้ว",
+            "skill_id": skill_id
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+# ============================================
 # PROMPTS
 # ============================================
 
