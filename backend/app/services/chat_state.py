@@ -2,6 +2,7 @@
 Chat State - State definition for LangGraph workflow
 """
 
+from datetime import datetime
 from typing import TypedDict, List, Optional, Annotated, Any, Dict
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
 from langgraph.graph.message import add_messages
@@ -140,8 +141,6 @@ def create_initial_state(
     Returns:
         Initial ChatState dict
     """
-    from datetime import datetime
-    
     return ChatState(
         # Messages
         messages=[HumanMessage(content=message)],

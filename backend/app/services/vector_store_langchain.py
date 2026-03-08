@@ -2,6 +2,7 @@
 LangChain Vector Store Service - Qdrant integration via LangChain
 """
 
+import os
 from typing import List, Optional, Dict, Any
 from langchain_qdrant import QdrantVectorStore
 from langchain_core.documents import Document

@@ -2,6 +2,7 @@
 LangChain LLM Service - Unified interface for multiple LLM providers
 """
 
+import os
 from typing import Optional, List, Dict, Any
 from langchain_openai import ChatOpenAI
 from langchain_anthropic import ChatAnthropic
