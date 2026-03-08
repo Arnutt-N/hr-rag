@@ -288,16 +288,24 @@ async def generate_document(
     reference_category: Optional[str] = None
 ) -> str:
     """
-    Generate a new document based on existing knowledge and requirements.
+    สร้างเอกสาร HR ใหม่จากข้อมูลที่มีและความต้องการ
+    
+    Generate a new HR document based on existing knowledge and requirements.
     
     Args:
-        doc_type: Document type (policy, procedure, memo, announcement)
-        topic: Document topic/title
-        requirements: List of requirements/content points
-        reference_category: Optional category to search for references
+        doc_type: ประเภทเอกสาร (policy=นโยบาย, procedure=ขั้นตอน, memo=บันทึก, 
+                 announcement=ประกาศ, email=อีเมล, form=แบบฟอร์ม)
+        topic: หัวข้อ/ชื่อเรื่องเอกสาร
+        requirements: รายการข้อกำหนด/รายละเอียดที่ต้องมี
+        reference_category: หมวดหมู่เอกสารอ้างอิง (optional)
     
     Returns:
         JSON string with generated document
+    
+    Examples:
+        doc_type="policy", topic="นโยบาย Work From Home"
+        doc_type="procedure", topic="ขั้นตอนการลางาน"
+        doc_type="memo", topic="บันทึกข้อความ เรื่อง ประชุมพนักงาน"
     """
     from app.services.document_generation import get_document_generation_service
     
@@ -315,13 +323,15 @@ async def generate_document(
         
         return json.dumps({
             "success": True,
+            "message": "สร้างเอกสารสำเร็จ",
             "document": result
         }, ensure_ascii=False)
         
     except Exception as e:
         return json.dumps({
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "message": "เกิดข้อผิดพลาดในการสร้างเอกสาร"
         }, ensure_ascii=False)
 
 
