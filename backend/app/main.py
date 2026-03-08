@@ -23,6 +23,8 @@ from slowapi.errors import RateLimitExceeded
 
 from app.core.config import get_settings
 from app.core.logging import setup_logging, get_logger
+from app.core.request_id import RequestIDMiddleware
+from app.core.circuit_breaker import get_all_circuit_stats
 from app.models.database import init_db
 from app.services.cache import get_cache_service
 
@@ -38,6 +40,9 @@ logger = get_logger(__name__)
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+# Add request ID middleware for distributed tracing
+app.add_middleware(RequestIDMiddleware)
 
 # Add rate limiter to app state
 app.state.limiter = limiter
@@ -103,7 +108,67 @@ async def on_shutdown():
 
 @app.get("/health")
 async def health():
+    """Basic health check."""
     return {"status": "ok"}
+
+
+@app.get("/health/detailed")
+async def health_detailed():
+    """Detailed health check with all services status."""
+    from datetime import datetime
+    import time
+    
+    health_status = {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "version": "1.0.0",
+        "services": {},
+        "circuit_breakers": get_all_circuit_stats()
+    }
+    
+    # Check Redis
+    try:
+        cache = get_cache_service()
+        start = time.time()
+        await cache.ping()
+        health_status["services"]["redis"] = {
+            "status": "ok",
+            "latency_ms": round((time.time() - start) * 1000, 2)
+        }
+    except Exception as e:
+        health_status["services"]["redis"] = {"status": "error", "message": str(e)}
+        health_status["status"] = "degraded"
+    
+    # Check PostgreSQL
+    try:
+        from sqlalchemy import text
+        from app.models.database import engine
+        start = time.time()
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        health_status["services"]["postgres"] = {
+            "status": "ok",
+            "latency_ms": round((time.time() - start) * 1000, 2)
+        }
+    except Exception as e:
+        health_status["services"]["postgres"] = {"status": "error", "message": str(e)}
+        health_status["status"] = "degraded"
+    
+    # Check Qdrant
+    try:
+        import httpx
+        start = time.time()
+        async with httpx.AsyncClient() as client:
+            resp = await client.get(f"http://{settings.qdrant_host}:{settings.qdrant_port}/health", timeout=5.0)
+            health_status["services"]["qdrant"] = {
+                "status": "ok" if resp.status_code == 200 else "error",
+                "latency_ms": round((time.time() - start) * 1000, 2)
+            }
+    except Exception as e:
+        health_status["services"]["qdrant"] = {"status": "error", "message": str(e)}
+        health_status["status"] = "degraded"
+    
+    return health_status
 
 
 # Routers with API versioning
