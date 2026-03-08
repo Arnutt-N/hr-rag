@@ -940,6 +940,196 @@ async def skill_delete(skill_id: str) -> str:
 
 
 # ============================================
+# AGENT SWARM TOOLS
+# ============================================
+
+@mcp.tool()
+async def swarm_create(name: str) -> str:
+    """
+    สร้าง Agent Swarm ใหม่
+    
+    Create a new agent swarm.
+    
+    Args:
+        name: ชื่อ Swarm
+    
+    Returns:
+        JSON with swarm info
+    """
+    from app.services.agent_swarm import AgentSwarm
+    
+    try:
+        swarm = AgentSwarm(name=name)
+        
+        return json.dumps({
+            "success": True,
+            "message": f"สร้าง Swarm '{name}' สำเร็จ",
+            "swarm_id": swarm.swarm_id,
+            "name": swarm.name,
+            "status": "created"
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def swarm_add_agent(
+    swarm_id: str,
+    name: str,
+    role: str,
+    capabilities: List[str],
+    llm_provider: str = "openai"
+) -> str:
+    """
+    เพิ่ม Agent เข้า Swarm
+    
+    Add agent to swarm.
+    
+    Args:
+        swarm_id: ID ของ Swarm
+        name: ชื่อ Agent
+        role: บทบาท (coordinator, researcher, writer, critic, executor, specialist)
+        capabilities: ความสามารถ
+        llm_provider: LLM provider
+    
+    Returns:
+        JSON with agent info
+    """
+    from app.services.agent_swarm import AgentSwarm, AgentRole
+    
+    try:
+        # Note: In production, you'd store swarms and retrieve by ID
+        # For now, create a new swarm instance
+        swarm = AgentSwarm(name="temp")
+        swarm.swarm_id = swarm_id
+        
+        role_map = {
+            "coordinator": AgentRole.COORDINATOR,
+            "researcher": AgentRole.RESEARCHER,
+            "writer": AgentRole.WRITER,
+            "critic": AgentRole.CRITIC,
+            "executor": AgentRole.EXECUTOR,
+            "specialist": AgentRole.SPECIALIST
+        }
+        
+        agent_role = role_map.get(role, AgentRole.SPECIALIST)
+        
+        agent = swarm.create_agent(
+            name=name,
+            role=agent_role,
+            capabilities=capabilities,
+            llm_provider=llm_provider
+        )
+        
+        return json.dumps({
+            "success": True,
+            "message": f"เพิ่ม Agent '{name}' สำเร็จ",
+            "swarm_id": swarm_id,
+            "agent_id": agent.id,
+            "agent_name": agent.name,
+            "role": agent.role.value
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def swarm_execute(
+    swarm_id: str,
+    task: Dict[str, Any],
+    strategy: str = "parallel"
+) -> str:
+    """
+    สั่งให้ Swarm ทำงาน
+    
+    Execute task with agent swarm.
+    
+    Args:
+        swarm_id: ID ของ Swarm
+        task: รายละเอียดงาน
+        strategy: กลยุทธ์ (parallel, sequential, specialist)
+    
+    Returns:
+        JSON with execution results
+    """
+    from app.services.agent_swarm import AgentSwarm
+    
+    try:
+        # Create swarm and execute
+        swarm = AgentSwarm(name="execution")
+        swarm.swarm_id = swarm_id
+        
+        # Add some default agents for demo
+        from app.services.agent_swarm import AgentRole
+        swarm.create_agent("นักค้นคว้า", AgentRole.RESEARCHER, ["research", "analysis"])
+        swarm.create_agent("นักเขียน", AgentRole.WRITER, ["writing", "editing"])
+        swarm.create_agent("ผู้ตรวจสอบ", AgentRole.CRITIC, ["review", "quality"])
+        
+        result = await swarm.execute_task(task, strategy)
+        
+        return json.dumps(result, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+@mcp.tool()
+async def swarm_create_preset(preset_type: str) -> str:
+    """
+    สร้าง Swarm จาก Preset
+    
+    Create swarm from preset configuration.
+    
+    Args:
+        preset_type: ประเภท (research_team, content_team)
+    
+    Returns:
+        JSON with swarm info
+    """
+    from app.services.agent_swarm import create_research_swarm, create_content_swarm
+    
+    try:
+        if preset_type == "research_team":
+            swarm = create_research_swarm()
+        elif preset_type == "content_team":
+            swarm = create_content_swarm()
+        else:
+            return json.dumps({
+                "success": False,
+                "error": f"Unknown preset: {preset_type}"
+            }, ensure_ascii=False)
+        
+        return json.dumps({
+            "success": True,
+            "message": f"สร้าง Swarm '{preset_type}' สำเร็จ",
+            "swarm_id": swarm.swarm_id,
+            "name": swarm.name,
+            "total_agents": len(swarm.agents),
+            "agents": [
+                {"name": a.name, "role": a.role.value}
+                for a in swarm.agents.values()
+            ]
+        }, ensure_ascii=False)
+        
+    except Exception as e:
+        return json.dumps({
+            "success": False,
+            "error": str(e)
+        }, ensure_ascii=False)
+
+
+# ============================================
 # PROMPTS
 # ============================================
 
