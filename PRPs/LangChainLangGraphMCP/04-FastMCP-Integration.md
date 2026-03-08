@@ -28,11 +28,34 @@ def search_documents(query: str) -> str:
 
 ### 4.3 Dependencies
 
+> **⚠️ Update 2026-03-08:** FastMCP 2.0 ได้รับการปล่อยออกมาแล้ว มีการเปลี่ยนแปลง API ที่สำคัญ
+
 ```toml
 [tool.poetry.dependencies]
-fastmcp = "^0.4.0"
-mcp = "^1.0.0"
+# FastMCP 2.0 (Latest)
+fastmcp = "^2.0.0"
+
+# สำหรับ FastMCP 1.x (Legacy)
+# fastmcp = "^0.4.0"
+# mcp = "^1.0.0"
 ```
+
+**ติดตั้งด้วย uv:**
+```bash
+# FastMCP 2.0
+uv pip install fastmcp
+
+# หรือ uv add
+uv add fastmcp
+
+# สำหรับ FastMCP 1.x (Legacy)
+# uv pip install fastmcp==0.4.0 mcp
+```
+
+**Breaking Changes in FastMCP 2.0:**
+- API มีการเปลี่ยนแปลงที่สำคัญ
+- Context object มี interface ใหม่
+- ควรอ่าน migration guide จาก [gofastmcp.com/v2](https://gofastmcp.com/v2/getting-started/welcome)
 
 ### 4.4 MCP Server Architecture
 
@@ -485,8 +508,21 @@ async def admin_only_tool(
 
 1. **Install FastMCP**
    ```bash
-   poetry add fastmcp mcp
+   # FastMCP 2.0 (Recommended) - ใช้ uv
+   uv pip install fastmcp
+   
+   # หรือ uv add
+   uv add fastmcp
+   
+   # สำหรับ FastMCP 1.x (Legacy)
+   # uv pip install fastmcp==0.4.0 mcp
    ```
+
+**Reference Documents:**
+- [FastMCP 2.0 Official Docs](https://gofastmcp.com/v2/getting-started/welcome)
+- [FastMCP GitHub](https://github.com/PrefectHQ/fastmcp)
+- [FastMCP Client Guide](https://gofastmcp.com/clients/client)
+- [CircleCI Deployment Tutorial](https://circleci.com/blog/building-and-deploying-a-python-mcp-server-with-fastmcp/)
 
 2. **Create MCP Server**
    - Define tools
