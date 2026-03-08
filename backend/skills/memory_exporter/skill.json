@@ -1,0 +1,11 @@
+{
+  "name": "Memory Exporter",
+  "version": "1.0.0",
+  "description": "ส่งออกความทรงจำไปยัง AI Platform อื่น (Export memories to other AI platforms)",
+  "author": "HR-RAG Team",
+  "tags": ["memory", "export", "integration", "openai", "claude", "gemini"],
+  "dependencies": [],
+  "entry_point": "src/main.py",
+  "created_at": "2026-03-08T11:00:00",
+  "updated_at": "2026-03-08T11:00:00"
+}
