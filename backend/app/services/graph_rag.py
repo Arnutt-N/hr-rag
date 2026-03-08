@@ -2,6 +2,7 @@
 Graph RAG - Knowledge Graph-based Retrieval
 
 Builds a knowledge graph from documents and traverses it for better context.
+Now with Neo4j support - falls back to in-memory when Neo4j unavailable.
 """
 
 import re
@@ -12,6 +13,13 @@ from dataclasses import dataclass, field
 from langchain_core.documents import Document
 from app.services.llm.langchain_service import get_llm_service
 from app.services.advanced_retrieval import get_advanced_retrieval_service
+
+# Optional Neo4j import
+try:
+    from app.services.neo4j_graph import Neo4jGraphService, get_neo4j_service
+    NEO4J_AVAILABLE = True
+except ImportError:
+    NEO4J_AVAILABLE = False
 
 
 @dataclass
@@ -114,12 +122,7 @@ class GraphRAGService:
     """
     Graph RAG: Use knowledge graph for enhanced retrieval.
     
-    Flow:
-    1. Extract entities from query
-    2. Find matching entities in graph
-    3. Traverse graph to find related entities
-    4. Retrieve documents from graph neighborhood
-    5. Combine with vector search results
+    Uses Neo4j when available, falls back to in-memory graph.
     """
     
     def __init__(self):
@@ -127,10 +130,32 @@ class GraphRAGService:
         self.llm_service = get_llm_service()
         self.retrieval_service = get_advanced_retrieval_service()
         self._built = False
+        
+        # Try to use Neo4j
+        self.neo4j_service: Optional[Any] = None
+        self.use_neo4j = False
+        
+        if NEO4J_AVAILABLE:
+            try:
+                self.neo4j_service = get_neo4j_service()
+                if self.neo4j_service.connect():
+                    self.use_neo4j = True
+                    print("Using Neo4j for Graph RAG")
+                else:
+                    print("Neo4j not available, using in-memory graph")
+            except Exception as e:
+                print(f"Neo4j initialization failed: {e}, using in-memory graph")
     
     async def build_graph_from_documents(self, documents: List[Document]):
         """Build knowledge graph from documents."""
-        print(f"Building knowledge graph from {len(documents)} documents...")
+        if self.use_neo4j and self.neo4j_service:
+            await self.neo4j_service.build_graph_from_documents(documents)
+            self._built = True
+        else:
+            # Fall back to in-memory
+            await self._build_in_memory_graph(documents)
+    
+    async def _build_in_memory_graph(self, documents: List[Document]):
         
         for i, doc in enumerate(documents):
             doc_id = f"doc_{i}"
