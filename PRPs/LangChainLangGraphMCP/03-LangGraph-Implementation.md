@@ -14,10 +14,32 @@ LangGraph เป็น library สำหรับสร้าง stateful, multi
 
 ### 3.2 Dependencies
 
+> **📅 Updated:** 2026-03-08
+
 ```toml
 [tool.poetry.dependencies]
-langgraph = "^0.2.0"
+langgraph = "^0.3.0"
 ```
+
+**ติดตั้งด้วย uv:**
+```bash
+# ติดตั้งด้วย uv
+uv pip install langgraph
+
+# หรือ uv add
+uv add langgraph
+```
+
+**Note:** LangGraph 0.3.x มีการเพิ่มฟีเจอร์ใหม่ เช่น:
+- `interrupt` function ที่ง่ายต่อการใช้งาน
+- `Command` primitive สำหรับ human-in-the-loop
+- การปรับปรุง performance ของ checkpointing
+
+**Official Resources:**
+- [LangGraph Overview](https://docs.langchain.com/oss/python/langgraph/overview)
+- [Workflows and Agents](https://docs.langchain.com/oss/python/langgraph/workflows-agents)
+- [GitHub Repository](https://github.com/langchain-ai/langgraph)
+- [RealPython Tutorial](https://realpython.com/langgraph-python/)
 
 ### 3.3 Chat Workflow Graph
 
@@ -511,8 +533,21 @@ Is it good enough? (yes/no)"""
 
 1. **Install LangGraph**
    ```bash
-   poetry add langgraph
+   # ใช้ uv (Recommended)
+   uv pip install langgraph
+   
+   # หรือ uv add
+   uv add langgraph
+   
+   # หรือ pip
+   # pip install langgraph
    ```
+
+**Reference Documents:**
+- [LangGraph Overview](https://docs.langchain.com/oss/python/langgraph/overview)
+- [Workflows and Agents](https://docs.langchain.com/oss/python/langgraph/workflows-agents)
+- [RealPython LangGraph Guide](https://realpython.com/langgraph-python/)
+- [GitHub Repository](https://github.com/langchain-ai/langgraph)
 
 2. **Create State Models**
    - Define `ChatState` TypedDict

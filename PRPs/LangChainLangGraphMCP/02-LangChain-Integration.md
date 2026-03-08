@@ -17,15 +17,23 @@ LangChain เป็น framework สำหรับสร้าง applications 
 
 ### 2.2 Dependencies
 
+> **📅 Updated:** 2026-03-08 - อัพเดทเวอร์ชันล่าสุด และใช้ `uv` สำหรับการติดตั้ง
+
 ```toml
 # pyproject.toml
 [tool.poetry.dependencies]
-langchain = "^0.3.0"
-langchain-community = "^0.3.0"
-langchain-openai = "^0.2.0"
-langchain-anthropic = "^0.2.0"
+# Core LangChain
+langchain = "^0.3.20"
+langchain-community = "^0.3.20"
+langchain-core = "^0.3.40"
+
+# LLM Providers
+langchain-openai = "^0.3.0"
+langchain-anthropic = "^0.3.0"
+
+# Vector Stores
 langchain-qdrant = "^0.2.0"
-langchain-redis = "^0.1.0"
+langchain-redis = "^0.2.0"
 
 # Document loaders
 pypdf = "^5.0.0"
@@ -35,6 +43,20 @@ unstructured = "^0.16.0"
 # Embeddings
 sentence-transformers = "^3.0.0"
 ```
+
+**ติดตั้งด้วย uv (Recommended):**
+```bash
+# ติดตั้ง dependencies ทั้งหมดจาก pyproject.toml
+uv pip install -e .
+
+# หรือติดตั้งแต่ละ package
+uv pip install langchain langchain-community langchain-openai langchain-qdrant
+```
+
+**Official Resources:**
+- [LangChain Quickstart](https://docs.langchain.com/oss/python/langchain/quickstart)
+- [Python API Reference](https://reference.langchain.com/python)
+- [LangChain Overview](https://docs.langchain.com/oss/python/langchain/overview)
 
 ### 2.3 LLM Service Refactor
 
@@ -344,8 +366,20 @@ Context:
 
 1. **Add Dependencies**
    ```bash
-   poetry add langchain langchain-community langchain-openai langchain-qdrant
+   # ใช้ uv (Recommended - เร็วกว่า pip)
+   uv pip install langchain langchain-community langchain-openai langchain-qdrant
+   
+   # หรือถ้าใช้ uv add (เพิ่มเข้า pyproject.toml ด้วย)
+   uv add langchain langchain-community langchain-openai langchain-qdrant
+   
+   # หรือ pip แบบเดิม
+   # pip install langchain langchain-community langchain-openai langchain-qdrant
    ```
+
+**Reference Documents:**
+- [LangChain Quickstart](https://docs.langchain.com/oss/python/langchain/quickstart)
+- [Python API Reference](https://reference.langchain.com/python)
+- [LangChain OpenTutorial GitHub](https://github.com/LangChain-OpenTutorial)
 
 2. **Create New Services**
    - `langchain_service.py` - LLM wrapper

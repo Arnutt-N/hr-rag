@@ -14,25 +14,38 @@
 | 4 | Week 4-5 | FastMCP Server |
 | 5 | Week 5-6 | Testing & Deployment |
 
+**Note:** Memory Management จะถูก implement ควบคู่ไปกับ Phase 2-4
+
 ### 5.2 Phase 1: Preparation (Week 1)
 
 #### Day 1-2: Environment Setup
 - [ ] Create feature branch: `feature/langchain-refactor`
 - [ ] Update `pyproject.toml` with new dependencies
-- [ ] Setup development environment
+- [ ] Setup development environment (ใช้ `uv` แทน `poetry`)
 - [ ] Run existing tests to establish baseline
 
 ```toml
 # Add to pyproject.toml
 [tool.poetry.dependencies]
-langchain = "^0.3.0"
-langchain-community = "^0.3.0"
-langchain-openai = "^0.2.0"
-langchain-anthropic = "^0.2.0"
+langchain = "^0.3.20"
+langchain-community = "^0.3.20"
+langchain-openai = "^0.3.0"
+langchain-anthropic = "^0.3.0"
 langchain-qdrant = "^0.2.0"
-langgraph = "^0.2.0"
-fastmcp = "^0.4.0"
-mcp = "^1.0.0"
+langgraph = "^0.3.0"
+fastmcp = "^2.0.0"
+```
+
+**ติดตั้ง dependencies ด้วย uv:**
+```bash
+# ติดตั้ง uv (ถ้ายังไม่มี)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# ติดตั้ง dependencies
+uv pip install -e .
+
+# หรือ sync จาก lock file
+uv pip sync requirements.txt
 ```
 
 #### Day 3-4: Architecture Review
@@ -84,6 +97,15 @@ mcp = "^1.0.0"
 - [ ] Implement vector store service
 - [ ] Test Qdrant integration
 
+**Day 5 (Part 2): Memory Setup**
+```python
+# Create: backend/app/services/memory/__init__.py
+# Create: backend/app/services/memory/short_term.py
+```
+- [ ] Setup Redis for session memory
+- [ ] Implement ConversationBufferWindowMemory
+- [ ] Test memory persistence
+
 #### Week 3: RAG Pipeline
 
 **Day 1-2: RAG Chain**
@@ -134,6 +156,7 @@ mcp = "^1.0.0"
 - [ ] Replace chat endpoints
 - [ ] Add streaming support
 - [ ] Test workflows
+- [ ] **Integrate memory nodes** (short-term + entity)
 
 #### Week 4: Advanced Features
 
@@ -151,6 +174,7 @@ mcp = "^1.0.0"
 - [ ] Graph unit tests
 - [ ] Integration tests
 - [ ] Load testing
+- [ ] **Memory persistence tests**
 
 **Deliverables:**
 - LangGraph workflow working
