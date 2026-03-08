@@ -77,7 +77,7 @@ export default function AdminDashboard() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size="lg"/>
       </div>
     );
   }
@@ -136,7 +136,7 @@ export default function AdminDashboard() {
                     <p className="text-3xl font-bold">{card.value.toLocaleString()}</p>
                   </div>
                   <div className={`p-3 bg-${card.color}-100 dark:bg-${card.color}-900 rounded-xl`}>
-                    <Icon className={`w-6 h-6 text-${card.color}-600`} />
+                    <Icon className={`w-6 h-6 text-${card.color}-600`}/>
                   </div>
                 </div>
               </Card>
@@ -160,15 +160,15 @@ export default function AdminDashboard() {
                 </span>
                 <div className="flex gap-4">
                   <span className="text-sm" title="Queries">
-                    <MessageSquare className="w-4 h-4 inline mr-1" /
+                    <MessageSquare className="w-4 h-4 inline mr-1"/>
                     {day.queries}
                   </span>
                   <span className="text-sm" title="New Users">
-                    <Users className="w-4 h-4 inline mr-1" /
+                    <Users className="w-4 h-4 inline mr-1"/>
                     {day.new_users}
                   </span>
                   <span className="text-sm" title="New Documents">
-                    <FileText className="w-4 h-4 inline mr-1" /
+                    <FileText className="w-4 h-4 inline mr-1"/>
                     {day.new_documents}
                   </span>
                 </div>
@@ -197,7 +197,7 @@ export default function AdminDashboard() {
                       style={{
                         width: `${(provider.count / topProviders[0].count) * 100}%`,
                       }}
-                    />
+                   />
                   </div>
                 </div>
               </div>
@@ -224,7 +224,7 @@ export default function AdminDashboard() {
                   </div>
                 </div>
                 <div className="flex items-center text-sm text-gray-500">
-                  <MessageSquare className="w-4 h-4 mr-1" /
+                  <MessageSquare className="w-4 h-4 mr-1"/>
                   {user.message_count.toLocaleString()}
                 </div>
               </div>
@@ -241,7 +241,7 @@ export default function AdminDashboard() {
               className="block p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <div className="flex items-center">
-                <Users className="w-5 h-5 text-primary-600 mr-3" /
+                <Users className="w-5 h-5 text-primary-600 mr-3"/>
                 <div>
                   <p className="font-medium">Manage Users</p>
                   <p className="text-sm text-gray-500">View and manage user accounts</p>
@@ -253,7 +253,7 @@ export default function AdminDashboard() {
               className="block p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <div className="flex items-center">
-                <Activity className="w-5 h-5 text-green-600 mr-3" /
+                <Activity className="w-5 h-5 text-green-600 mr-3"/>
                 <div>
                   <p className="font-medium">View Analytics</p>
                   <p className="text-sm text-gray-500">Detailed system statistics</p>
@@ -265,7 +265,7 @@ export default function AdminDashboard() {
               className="block p-4 bg-gray-50 dark:bg-gray-800 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
               <div className="flex items-center">
-                <TrendingUp className="w-5 h-5 text-purple-600 mr-3" /
+                <TrendingUp className="w-5 h-5 text-purple-600 mr-3"/>
                 <div>
                   <p className="font-medium">System Settings</p>
                   <p className="text-sm text-gray-500">Configure system parameters</p>

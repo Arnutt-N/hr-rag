@@ -198,7 +198,7 @@ export default function ChatPage() {
                 className="w-full justify-center"
                 variant="outline"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="w-4 h-4 mr-2"/>
                 แชทใหม่
               </Button>
             </div>
@@ -218,7 +218,7 @@ export default function ChatPage() {
                         : "hover:bg-gray-100 dark:hover:bg-gray-700"
                     }`}
                   >
-                    <FolderOpen className="w-4 h-4 inline mr-2" /
+                    <FolderOpen className="w-4 h-4 inline mr-2"/>
                     {project.name}
                   </button>
                 ))}
@@ -226,7 +226,7 @@ export default function ChatPage() {
                   href="/projects"
                   className="block w-full text-left px-3 py-2 rounded-lg text-sm text-primary-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  <Plus className="w-4 h-4 inline mr-2" /
+                  <Plus className="w-4 h-4 inline mr-2"/>
                   สร้างโปรเจกต์ใหม่
                 </Link>
               </div>
@@ -240,7 +240,7 @@ export default function ChatPage() {
                     key={session.id}
                     className="w-full text-left px-3 py-2 rounded-lg text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                   >
-                    <MessageSquare className="w-4 h-4 inline mr-2 text-gray-400" /
+                    <MessageSquare className="w-4 h-4 inline mr-2 text-gray-400"/>
                     {session.title}
                   </button>
                 ))}
@@ -252,14 +252,14 @@ export default function ChatPage() {
                 href="/settings"
                 className="flex items-center px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
               >
-                <Settings className="w-4 h-4 mr-2" /
+                <Settings className="w-4 h-4 mr-2"/>
                 ตั้งค่า
               </Link>
               <button
                 onClick={handleLogout}
                 className="flex items-center w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
               >
-                <LogOut className="w-4 h-4 mr-2" /
+                <LogOut className="w-4 h-4 mr-2"/>
                 ออกจากระบบ
               </button>
             </div>
@@ -277,9 +277,9 @@ export default function ChatPage() {
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg mr-2"
             >
               {sidebarOpen ? (
-                <ChevronLeft className="w-5 h-5" />
+                <ChevronLeft className="w-5 h-5"/>
               ) : (
-                <Menu className="w-5 h-5" />
+                <Menu className="w-5 h-5"/>
               )}
             </button>
             <h1 className="text-lg font-semibold">HR-RAG Chat</h1>
@@ -294,7 +294,7 @@ export default function ChatPage() {
             <ProviderSelector
               value={selectedProvider}
               onChange={setSelectedProvider}
-            />
+           />
             {isGuest && (
               <Link href="/login">
                 <Button size="sm">เข้าสู่ระบบ</Button>
@@ -319,15 +319,15 @@ export default function ChatPage() {
                 <FileUpload
                   onUpload={(files) => console.log("Uploaded:", files)}
                   className="w-full max-w-sm mx-auto"
-                />
+               />
               </motion.div>
             </div>
           ) : (
             <>
               {messages.map((message) => (
-                <ChatPanel key={message.id} message={message} />
+                <ChatPanel key={message.id} message={message}/>
               ))}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef}/>
             </>
           )}
         </div>
@@ -349,14 +349,14 @@ export default function ChatPage() {
                 className="w-full px-4 py-3 pr-12 border border-gray-300 dark:border-gray-600 rounded-xl resize-none focus:ring-2 focus:ring-primary-500 focus:border-transparent dark:bg-gray-800"
                 rows={1}
                 style={{ minHeight: "56px", maxHeight: "200px" }}
-              />
+             />
               <button
                 onClick={handleSend}
                 disabled={isLoading || !input.trim()}
                 className="absolute right-3 bottom-3 p-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? (
-                  <LoadingSpinner size="sm" />
+                  <LoadingSpinner size="sm"/>
                 ) : (
                   <svg
                     className="w-5 h-5"
@@ -369,7 +369,7 @@ export default function ChatPage() {
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-                    />
+                   />
                   </svg>
                 )}
               </button>

@@ -44,7 +44,7 @@ export default function AdminSecurity() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size="lg"/>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export default function AdminSecurity() {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-xl mr-4">
-              <Shield className="w-6 h-6 text-blue-600" />
+              <Shield className="w-6 h-6 text-blue-600"/>
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Attempts</p>
@@ -78,7 +78,7 @@ export default function AdminSecurity() {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-3 bg-green-100 dark:bg-green-900 rounded-xl mr-4">
-              <CheckCircle className="w-6 h-6 text-green-600" />
+              <CheckCircle className="w-6 h-6 text-green-600"/>
             </div>
             <div>
               <p className="text-sm text-gray-500">Successful</p>
@@ -90,7 +90,7 @@ export default function AdminSecurity() {
         <Card className="p-6">
           <div className="flex items-center">
             <div className="p-3 bg-red-100 dark:bg-red-900 rounded-xl mr-4">
-              <XCircle className="w-6 h-6 text-red-600" />
+              <XCircle className="w-6 h-6 text-red-600"/>
             </div>
             <div>
               <p className="text-sm text-gray-500">Failed</p>
@@ -141,12 +141,12 @@ export default function AdminSecurity() {
                 <td className="px-6 py-4">
                   {attempt.success ? (
                     <span className="flex items-center text-green-600">
-                      <CheckCircle className="w-4 h-4 mr-1" /
+                      <CheckCircle className="w-4 h-4 mr-1"/>
                       Success
                     </span>
                   ) : (
                     <span className="flex items-center text-red-600">
-                      <XCircle className="w-4 h-4 mr-1" /
+                      <XCircle className="w-4 h-4 mr-1"/>
                       Failed
                     </span>
                   )}

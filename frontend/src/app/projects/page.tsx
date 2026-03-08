@@ -100,7 +100,7 @@ export default function ProjectsPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner size="lg" />
+        <LoadingSpinner size="lg"/>
       </div>
     );
   }
@@ -114,12 +114,12 @@ export default function ProjectsPage() {
               href="/chat"
               className="mr-4 p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5"/>
             </Link>
             <h1 className="text-2xl font-bold">จัดการโปรเจกต์</h1>
           </div>
           <Button onClick={() => setShowCreateModal(true)}>
-            <FolderPlus className="w-4 h-4 mr-2" />
+            <FolderPlus className="w-4 h-4 mr-2"/>
             สร้างโปรเจกต์ใหม่
           </Button>
         </div>
@@ -130,13 +130,13 @@ export default function ProjectsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="text-center py-16"
           >
-            <FolderOpen className="w-16 h-16 mx-auto text-gray-400 mb-4" />
+            <FolderOpen className="w-16 h-16 mx-auto text-gray-400 mb-4"/>
             <h2 className="text-xl font-semibold mb-2">ยังไม่มีโปรเจกต์</h2>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               สร้างโปรเจกต์แรกของคุณเพื่อจัดเก็บเอกสารและแยกข้อมูลตามโครงการ
             </p>
             <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" />
+              <Plus className="w-4 h-4 mr-2"/>
               สร้างโปรเจกต์
             </Button>
           </motion.div>
@@ -152,13 +152,13 @@ export default function ProjectsPage() {
                 <Card className="p-6 hover:shadow-lg transition-shadow">
                   <div className="flex items-start justify-between mb-4">
                     <div className="p-3 bg-primary-100 dark:bg-primary-900 rounded-xl">
-                      <FolderOpen className="w-6 h-6 text-primary-600" />
+                      <FolderOpen className="w-6 h-6 text-primary-600"/>
                     </div>
                     <button
                       onClick={() => deleteProject(project.id)}
                       className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-4 h-4"/>
                     </button>
                   </div>
 
@@ -169,7 +169,7 @@ export default function ProjectsPage() {
 
                   <div className="flex items-center justify-between">
                     <div className="flex items-center text-sm text-gray-500">
-                      <FileText className="w-4 h-4 mr-1" /
+                      <FileText className="w-4 h-4 mr-1"/>
                       {project.document_count} เอกสาร
                     </div>
                     <Link href={`/projects/${project.id}`}>
@@ -204,7 +204,7 @@ export default function ProjectsPage() {
                   }
                   placeholder="เช่น โครงการ HR 2024"
                   required
-                />
+               />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">คำอธิบาย</label>
@@ -216,7 +216,7 @@ export default function ProjectsPage() {
                   placeholder="รายละเอียดเกี่ยวกับโปรเจกต์..."
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700"
                   rows={3}
-                />
+               />
               </div>
               <div className="flex gap-3 pt-2">
                 <Button
@@ -234,7 +234,7 @@ export default function ProjectsPage() {
                 >
                   {isCreating ? (
                     <>
-                      <LoadingSpinner size="sm" className="mr-2" />
+                      <LoadingSpinner size="sm" className="mr-2"/>
                       กำลังสร้าง...
                     </>
                   ) : (

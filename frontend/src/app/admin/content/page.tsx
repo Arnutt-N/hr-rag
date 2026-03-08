@@ -130,7 +130,7 @@ export default function AdminContent() {
               : "bg-white dark:bg-gray-800 hover:bg-gray-50"
           }`}
         >
-          <FolderOpen className="w-5 h-5 inline mr-2" /
+          <FolderOpen className="w-5 h-5 inline mr-2" />
           Projects
         </button>
         <button
@@ -141,7 +141,7 @@ export default function AdminContent() {
               : "bg-white dark:bg-gray-800 hover:bg-gray-50"
           }`}
         >
-          <FileText className="w-5 h-5 inline mr-2" /
+          <FileText className="w-5 h-5 inline mr-2" />
           Documents
         </button>
       </div>

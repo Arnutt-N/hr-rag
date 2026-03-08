@@ -13,7 +13,10 @@
       "Bash(npm run:*)",
       "Bash(date:*)",
       "Bash(powershell:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(docker-compose:*)"
     ]
   },
   "primaryModel": "qwen3.5-plus",
