@@ -379,6 +379,331 @@ async def get_usage_stats() -> str:
 
 
 # ============================================
+# OCR TOOLS (Thai-optimized)
+# ============================================
+
+@mcp.tool()
+async def ocr_extract_text(
+    file_path: str,
+    language: str = "tha+eng",
+    enhance_resolution: bool = True
+) -> str:
+    """
+    แปลงเอกสาร/รูปภาพเป็นข้อความ (OCR) - รองรับภาษาไทย
+    
+    Extract text from document/image with Thai language support.
+    
+    Args:
+        file_path: พาธไฟล์ (PDF, PNG, JPG)
+        language: ภาษา (tha+eng, tha, eng)
+        enhance_resolution: ปรับปรุงความละเอียด
+    
+    Returns:
+        JSON with extracted text
+    """
+    from app.services.mcp_ocr import get_ocr_service
+    
+    try:
+        ocr_service = get_ocr_service()
+        result = await ocr_service.extract_text(
+            file_path=file_path,
+            language=language,
+            enhance_resolution=enhance_resolution
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def ocr_batch_process(
+    file_paths: List[str],
+    language: str = "tha+eng"
+) -> str:
+    """
+    ประมวลผล OCR หลายไฟล์พร้อมกัน
+    
+    Batch OCR processing for multiple files.
+    
+    Args:
+        file_paths: รายการพาธไฟล์
+        language: ภาษา
+    
+    Returns:
+        JSON with batch results
+    """
+    from app.services.mcp_ocr import get_ocr_service
+    
+    try:
+        ocr_service = get_ocr_service()
+        result = await ocr_service.batch_process(file_paths, language)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+# ============================================
+# NOTEBOOKLM TOOLS
+# ============================================
+
+@mcp.tool()
+async def notebook_summarize(
+    query: str,
+    summary_type: str = "comprehensive",
+    language: str = "thai"
+) -> str:
+    """
+    สรุปเอกสารแบบ NotebookLM
+    
+    Summarize documents like NotebookLM.
+    
+    Args:
+        query: หัวข้อ/คำค้นหา
+        summary_type: ประเภทสรุป (brief, comprehensive, bullet_points)
+        language: ภาษาผลลัพธ์
+    
+    Returns:
+        JSON with summary
+    """
+    from app.services.mcp_notebooklm import get_notebooklm_service
+    
+    try:
+        service = get_notebooklm_service()
+        result = await service.summarize_document(
+            query=query,
+            summary_type=summary_type,
+            language=language
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def notebook_insights(
+    query: str
+) -> str:
+    """
+    ดึง insights สำคัญจากเอกสาร
+    
+    Extract key insights from documents.
+    
+    Args:
+        query: หัวข้อที่ต้องการวิเคราะห์
+    
+    Returns:
+        JSON with insights
+    """
+    from app.services.mcp_notebooklm import get_notebooklm_service
+    
+    try:
+        service = get_notebooklm_service()
+        result = await service.extract_insights(query=query)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def notebook_generate_qa(
+    document_content: str,
+    num_questions: int = 10
+) -> str:
+    """
+    สร้างคำถาม-คำตอบจากเอกสาร
+    
+    Generate Q&A from document.
+    
+    Args:
+        document_content: เนื้อหาเอกสาร
+        num_questions: จำนวนคำถาม
+    
+    Returns:
+        JSON with Q&A
+    """
+    from app.services.mcp_notebooklm import get_notebooklm_service
+    
+    try:
+        service = get_notebooklm_service()
+        result = await service.generate_qa(
+            document_content=document_content,
+            num_questions=num_questions
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def notebook_podcast_script(
+    topic: str,
+    documents: List[str],
+    duration_minutes: int = 10
+) -> str:
+    """
+    สร้างสคริปต์พอดคาสต์จากเอกสาร
+    
+    Generate podcast script from documents.
+    
+    Args:
+        topic: หัวข้อพอดคาสต์
+        documents: รายการเนื้อหาเอกสาร
+        duration_minutes: ความยาวเป้าหมาย (นาที)
+    
+    Returns:
+        JSON with podcast script
+    """
+    from app.services.mcp_notebooklm import get_notebooklm_service
+    
+    try:
+        service = get_notebooklm_service()
+        result = await service.generate_podcast_script(
+            topic=topic,
+            documents=documents,
+            duration_minutes=duration_minutes
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+# ============================================
+# RESEARCH TOOLS
+# ============================================
+
+@mcp.tool()
+async def research_topic(
+    topic: str,
+    research_questions: List[str],
+    max_sources: int = 10
+) -> str:
+    """
+    วิจัยหัวข้อพร้อมสรุปผล
+    
+    Conduct research on a topic with full report.
+    
+    Args:
+        topic: หัวข้อวิจัย
+        research_questions: คำถามวิจัย
+        max_sources: จำนวนแหล่งข้อมูลสูงสุด
+    
+    Returns:
+        JSON with research report
+    """
+    from app.services.mcp_research import get_research_service
+    
+    try:
+        service = get_research_service()
+        result = await service.research_topic(
+            topic=topic,
+            research_questions=research_questions,
+            max_sources=max_sources
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def research_literature_review(
+    topic: str,
+    time_range: Optional[str] = None,
+    focus_areas: Optional[List[str]] = None
+) -> str:
+    """
+    สร้าง Literature Review
+    
+    Generate literature review.
+    
+    Args:
+        topic: หัวข้อรีวิว
+        time_range: ช่วงเวลา (เช่น "2020-2024")
+        focus_areas: ด้านที่เน้น
+    
+    Returns:
+        JSON with literature review
+    """
+    from app.services.mcp_research import get_research_service
+    
+    try:
+        service = get_research_service()
+        result = await service.literature_review(
+            topic=topic,
+            time_range=time_range,
+            focus_areas=focus_areas
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def research_evidence_analysis(
+    claim: str,
+    evidence_queries: List[str]
+) -> str:
+    """
+    วิเคราะห์หลักฐานสนับสนุนหรือคัดค้านข้อความ
+    
+    Analyze evidence for or against a claim.
+    
+    Args:
+        claim: ข้อความที่ต้องการตรวจสอบ
+        evidence_queries: คำค้นหาหลักฐาน
+    
+    Returns:
+        JSON with evidence analysis
+    """
+    from app.services.mcp_research import get_research_service
+    
+    try:
+        service = get_research_service()
+        result = await service.evidence_synthesis(
+            claim=claim,
+            evidence_queries=evidence_queries
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+@mcp.tool()
+async def research_proposal(
+    title: str,
+    background: str,
+    objectives: List[str],
+    methodology_approach: str
+) -> str:
+    """
+    สร้างโครงร่างการวิจัย (Research Proposal)
+    
+    Generate research proposal.
+    
+    Args:
+        title: ชื่อเรื่อง
+        background: ที่มาและความสำคัญ
+        objectives: วัตถุประสงค์
+        methodology_approach: แนวทางวิธีวิจัย
+    
+    Returns:
+        JSON with research proposal
+    """
+    from app.services.mcp_research import get_research_service
+    
+    try:
+        service = get_research_service()
+        result = await service.generate_research_proposal(
+            title=title,
+            background=background,
+            objectives=objectives,
+            methodology_approach=methodology_approach
+        )
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e)}, ensure_ascii=False)
+
+
+# ============================================
 # PROMPTS
 # ============================================
 
