@@ -3,9 +3,9 @@ uvicorn[standard]>=0.30.0
 pydantic>=2.8.0
 pydantic-settings>=2.4.0
 
-# DB (TiDB Cloud - MySQL compatible)
+# DB (PostgreSQL)
+asyncpg>=0.29.0
 sqlalchemy[asyncio]>=2.0.30
-aiomysql>=0.2.0
 
 # Auth
 python-jose[cryptography]>=3.3.0

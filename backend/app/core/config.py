@@ -18,9 +18,9 @@ class Settings(BaseSettings):
     app_name: str = "HR-RAG Backend"
     debug: bool = False
     
-    # Database (TiDB Cloud - MySQL compatible)
-    # Use SQLAlchemy async driver: mysql+aiomysql
-    database_url: str = "mysql+aiomysql://user:password@host:4000/hr_rag"
+    # Database (PostgreSQL - Docker)
+    # Use SQLAlchemy async driver: postgresql+asyncpg
+    database_url: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/hr_rag"
     
     # JWT Settings
     # ⚠️ CRITICAL: ต้องตั้งค่าใน .env ก่อน run production!

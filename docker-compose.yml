@@ -44,24 +44,18 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=mysql+pymysql://root:${MYSQL_ROOT_PASSWORD}@tidb:${MYSQL_PORT}/${MYSQL_DATABASE}
-      - TIDB_HOST=tidb
-      - TIDB_PORT=${MYSQL_PORT}
-      - TIDB_USER=root
-      - TIDB_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - TIDB_DATABASE=${MYSQL_DATABASE}
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@postgres:5432/hr_rag
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - POSTGRES_DB=hr_rag
       - REDIS_URL=redis://redis:6379/0
       - QDRANT_HOST=qdrant
       - QDRANT_PORT=6333
       - SECRET_KEY=${SECRET_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
-      # PostgreSQL Configuration
-      - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      - POSTGRES_DB=hr_rag
       # Neo4j Configuration
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
@@ -207,41 +201,10 @@ services:
       retries: 3
       start_period: 60s
 
-  # TiDB (for local development - use TiDB Cloud in production)
-  # Note: For production, use TiDB Cloud instead of this container
-  tidb:
-    image: pingcap/tidb:v8.1.0
-    container_name: hr-rag-tidb
-    ports:
-      - "4000:4000"
-      - "10080:10080"
-    command:
-      - --store=mocktikv
-      - --path=/tmp/tidb
-      - --log-file=/tmp/tidb.log
-    volumes:
-      - tidb_data:/tmp/tidb
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
-    healthcheck:
-      test: ["CMD", "tidb-ctl", "api", "health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-
 volumes:
   postgres_data:
   qdrant_storage:
   redis_data:
-  tidb_data:
   neo4j_data:
   neo4j_logs:
 
