@@ -15,19 +15,19 @@ from app.services.llm.langchain_service import get_llm_service
 
 @dataclass
 class Neo4jConfig:
-    """Neo4j configuration."""
-    uri: str = "bolt://neo4j:7687"
-    user: str = "neo4j"
-    password: str = "hr-rag-password"
+    """Neo4j configuration - all values from environment."""
+    uri: str = ""
+    user: str = ""
+    password: str = ""
     database: str = "neo4j"
     
     @classmethod
     def from_env(cls) -> "Neo4jConfig":
         """Create config from environment variables."""
         return cls(
-            uri=os.getenv("NEO4J_URI", "bolt://neo4j:7687"),
-            user=os.getenv("NEO4J_USER", "neo4j"),
-            password=os.getenv("NEO4J_PASSWORD", "hr-rag-password"),
+            uri=os.getenv("NEO4J_URI", ""),
+            user=os.getenv("NEO4J_USER", ""),
+            password=os.getenv("NEO4J_PASSWORD", ""),
             database=os.getenv("NEO4J_DATABASE", "neo4j")
         )
 
@@ -185,7 +185,8 @@ Return JSON: [{{"name": "...", "type": "..."}}]"""
                 entities = json.loads(json_match.group())
                 return entities if isinstance(entities, list) else []
             return []
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"Entity extraction error: {e}")
             return []
     
     async def _extract_relations(self, text: str, entities: List[Dict]) -> List[Dict[str, Any]]:
@@ -213,7 +214,8 @@ Return JSON: [{{"source": "...", "target": "...", "relation": "..."}}]"""
                 relations = json.loads(json_match.group())
                 return relations if isinstance(relations, list) else []
             return []
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            print(f"Relation extraction error: {e}")
             return []
     
     def get_neighbors(self, entity_name: str, depth: int = 1) -> List[Dict[str, Any]]:

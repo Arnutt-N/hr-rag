@@ -219,7 +219,8 @@ Return as JSON list:
                 return entities if isinstance(entities, list) else []
             
             return []
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
+            print(f"Entity extraction error: {e}")
             return []
     
     async def _extract_relations(self, text: str, entities: List[Dict]) -> List[Dict[str, Any]]:
@@ -251,7 +252,8 @@ Common relations: manages, reports_to, belongs_to, governs, applies_to, located_
                 return relations if isinstance(relations, list) else []
             
             return []
-        except:
+        except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
+            print(f"Relation extraction error: {e}")
             return []
     
     async def retrieve(

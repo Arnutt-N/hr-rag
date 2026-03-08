@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     debug: bool = False
     
     # Database (PostgreSQL - Docker)
+    # ⚠️ CRITICAL: ต้องตั้งค่าใน .env ก่อน run production!
     # Use SQLAlchemy async driver: postgresql+asyncpg
-    database_url: str = "postgresql+asyncpg://postgres:postgres@postgres:5432/hr_rag"
+    database_url: str = ""  # อ่านจาก DATABASE_URL env
     
     # JWT Settings
     # ⚠️ CRITICAL: ต้องตั้งค่าใน .env ก่อน run production!
@@ -108,7 +109,21 @@ class Settings(BaseSettings):
         Task 1.1: Validate JWT Secret - ถ้าไม่มีค่าใน env ให้ใช้ dev default
         Task 1.2: Parse CORS Origins จาก comma-separated string
         Task 1.3: API Keys อ่านจาก env แล้ว (pydantic ทำเอง) แต่ต้อง ensure ไม่มี hardcoded
+        Task 1.4: Validate DATABASE_URL
         """
+        
+        # Task 1.4: Database URL validation
+        db_url = os.getenv("DATABASE_URL")
+        if db_url:
+            self.database_url = db_url
+        elif not self.database_url:
+            # Dev default for Docker
+            self.database_url = "postgresql+asyncpg://postgres:postgres@postgres:5432/hr_rag"
+            warnings.warn(
+                "⚠️ DATABASE_URL ไม่ได้ตั้งค่า! ใช้ค่า default สำหรับ development\n"
+                "สำหรับ production: ตั้งค่าใน .env",
+                UserWarning
+            )
         
         # Task 1.1: JWT Secret validation
         jwt_secret = os.getenv("JWT_SECRET_KEY")

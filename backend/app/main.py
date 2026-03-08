@@ -106,12 +106,12 @@ async def health():
     return {"status": "ok"}
 
 
-# Routers
-app.include_router(auth.router)
-app.include_router(projects.router)
-app.include_router(ingest.router)
-app.include_router(search.router)
-app.include_router(chat.router)
-app.include_router(llm.router)
-app.include_router(evaluation.router)
-app.include_router(admin.router)
+# Routers with API versioning
+app.include_router(auth.router, prefix="/api/v1")
+app.include_router(projects.router, prefix="/api/v1")
+app.include_router(ingest.router, prefix="/api/v1")
+app.include_router(search.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
+app.include_router(llm.router, prefix="/api/v1")
+app.include_router(evaluation.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")

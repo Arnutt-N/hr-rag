@@ -306,6 +306,26 @@ hr-rag/
 - **Input Validation** - Pydantic models
 - **Admin Panel** - Login attempt limiting, IP blocking
 
+## 🔄 Database Migrations
+
+```bash
+# Create a new migration
+cd backend
+alembic revision --autogenerate -m "Description of changes"
+
+# Apply migrations
+alembic upgrade head
+
+# Rollback one migration
+alembic downgrade -1
+
+# View migration history
+alembic history
+
+# Current migration version
+alembic current
+```
+
 ## 🧪 Testing
 
 ```bash
