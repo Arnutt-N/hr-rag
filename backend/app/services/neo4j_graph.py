@@ -3,6 +3,7 @@ Neo4j Graph Service - Production-ready Neo4j integration for HR-RAG
 Compatible with existing GraphRAGService
 """
 
+import logging
 import os
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
@@ -11,6 +12,8 @@ from neo4j import GraphDatabase, Driver, Session
 from langchain_core.documents import Document
 
 from app.services.llm.langchain_service import get_llm_service
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -63,7 +66,7 @@ class Neo4jGraphService:
             self._connected = True
             return True
         except Exception as e:
-            print(f"Neo4j connection failed: {e}")
+            logger.error("neo4j_connection_failed", error=str(e))
             self._connected = False
             return False
     
@@ -87,7 +90,7 @@ class Neo4jGraphService:
                 try:
                     session.run(constraint)
                 except Exception as e:
-                    print(f"Constraint creation warning: {e}")
+                    logger.warning("neo4j_constraint_warning", error=str(e))
             
             # Create indexes
             indexes = [
@@ -100,7 +103,7 @@ class Neo4jGraphService:
                 try:
                     session.run(index)
                 except Exception as e:
-                    print(f"Index creation warning: {e}")
+                    logger.warning("neo4j_index_warning", error=str(e))
     
     async def build_graph_from_documents(self, documents: List[Document]):
         """Build knowledge graph from documents in Neo4j."""
@@ -109,7 +112,7 @@ class Neo4jGraphService:
         
         self.ensure_schema()
         
-        print(f"Building Neo4j graph from {len(documents)} documents...")
+        logger.info("neo4j_graph_build_start", document_count=len(documents))
         
         with self._get_driver().session(database=self.config.database) as session:
             for i, doc in enumerate(documents):
@@ -160,7 +163,7 @@ class Neo4jGraphService:
                     """, source_id=source_id, target_id=target_id,
                          rel_type=rel['relation'], weight=rel.get('weight', 1.0))
         
-        print("Neo4j graph built successfully")
+        logger.info("neo4j_graph_built_successfully")
     
     async def _extract_entities(self, text: str) -> List[Dict[str, str]]:
         """Extract entities from text."""
@@ -186,9 +189,9 @@ Return JSON: [{{"name": "...", "type": "..."}}]"""
                 return entities if isinstance(entities, list) else []
             return []
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"Entity extraction error: {e}")
+            logger.warning("neo4j_entity_extraction_error", error=str(e))
             return []
-    
+
     async def _extract_relations(self, text: str, entities: List[Dict]) -> List[Dict[str, Any]]:
         """Extract relations between entities."""
         import re
@@ -215,9 +218,9 @@ Return JSON: [{{"source": "...", "target": "...", "relation": "..."}}]"""
                 return relations if isinstance(relations, list) else []
             return []
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            print(f"Relation extraction error: {e}")
+            logger.warning("neo4j_relation_extraction_error", error=str(e))
             return []
-    
+
     def get_neighbors(self, entity_name: str, depth: int = 1) -> List[Dict[str, Any]]:
         """Get neighboring entities from Neo4j."""
         with self._get_driver().session(database=self.config.database) as session:
@@ -294,7 +297,7 @@ Return JSON: [{{"source": "...", "target": "...", "relation": "..."}}]"""
         """Clear all data from Neo4j."""
         with self._get_driver().session(database=self.config.database) as session:
             session.run("MATCH (n) DETACH DELETE n")
-            print("Neo4j graph cleared")
+            logger.info("neo4j_graph_cleared")
 
 
 # Singleton

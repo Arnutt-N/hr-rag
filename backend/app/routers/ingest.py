@@ -3,15 +3,21 @@
 File upload endpoint for PDF/DOC/DOCX/TXT and indexing into vector DB.
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+import logging
+
+from fastapi import APIRouter, Depends, Request, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.security import get_current_active_member
+from app.core.config import get_settings
 from app.models.schemas import IngestResponse, DocumentResponse
 from app.models.database import Project, Document, get_db
 from app.services.file_processor import extract_text, chunk_text
 from app.services.vector_store import get_vector_store
+
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 router = APIRouter(prefix="/ingest", tags=["ingest"])
 
@@ -19,10 +25,19 @@ router = APIRouter(prefix="/ingest", tags=["ingest"])
 @router.post("/{project_id}", response_model=IngestResponse)
 async def ingest_file(
     project_id: int,
+    request: Request,
     file: UploadFile = File(...),
     current_user=Depends(get_current_active_member),
     db: AsyncSession = Depends(get_db),
 ):
+    # Reject oversized files before reading the body into memory
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > settings.max_file_size:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large. Maximum size is {settings.max_file_size // (1024 * 1024)}MB"
+        )
+
     # ensure project ownership
     res = await db.execute(select(Project).where(Project.id == project_id, Project.owner_id == current_user.id))
     project = res.scalar_one_or_none()
@@ -53,7 +68,7 @@ async def ingest_file(
     await db.commit()
     await db.refresh(doc)
 
-    # upsert into vector store
+    # upsert into vector store — on failure, clean up the DB record (avoid orphans)
     vs = get_vector_store()
     metadatas = [
         {
@@ -63,7 +78,13 @@ async def ingest_file(
         }
         for _ in chunks
     ]
-    vector_ids = await vs.upsert_documents(project.id, chunks, metadatas)
+    try:
+        vector_ids = await vs.upsert_documents(project.id, chunks, metadatas)
+    except Exception as e:
+        logger.error("vector_upsert_failed", document_id=doc.id, error=str(e))
+        await db.delete(doc)
+        await db.commit()
+        raise HTTPException(status_code=500, detail="Failed to index document; upload rolled back")
 
     doc.vector_ids = vector_ids
     doc.is_indexed = True

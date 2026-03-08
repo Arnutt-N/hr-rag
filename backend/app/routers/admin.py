@@ -1,3 +1,47 @@
+"""Admin router — knowledge base management endpoints."""
+
+from datetime import datetime
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
+from sqlalchemy import func, select, and_, or_, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.core.security import get_current_active_member
+from app.models.database import (
+    get_db, KnowledgeDocument, KnowledgeCategory, User
+)
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def paginate(items, total, page, page_size):
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "pages": max(1, (total + page_size - 1) // page_size),
+    }
+
+
+class PaginatedResponse(BaseModel):
+    items: list
+    total: int
+    page: int
+    page_size: int
+    pages: int
+
+
+async def require_admin(current_user=Depends(get_current_active_member)):
+    from app.models.database import UserRole
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+
+
 # ==================== KNOWLEDGE BASE MANAGEMENT ====================
 # Central RAG repository for HR documents
 
@@ -386,12 +430,23 @@ async def delete_knowledge_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # TODO: Also delete vectors from Qdrant
-    # vector_store.delete_vectors(doc.vector_ids)
-    
+    # Delete vectors from Qdrant if the document was indexed
+    if doc.vector_ids:
+        try:
+            from app.services.knowledge_base import knowledge_base_service
+            await knowledge_base_service.vector_store.delete_vectors(
+                collection_name=doc.vector_collection or "knowledge_base",
+                vector_ids=doc.vector_ids,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(
+                "delete_vectors_failed", document_id=document_id, error=str(e)
+            )
+
     await db.delete(doc)
     await db.commit()
-    
+
     return {"message": "Document deleted successfully"}
 
 

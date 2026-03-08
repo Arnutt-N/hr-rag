@@ -67,6 +67,9 @@ class ProviderFactory:
     # Fallback chain: if one provider fails, try next
     FALLBACK_CHAIN = {
         LLMProvider.OPENAI: [LLMProvider.ANTHROPIC, LLMProvider.GOOGLE, LLMProvider.OLLAMA],
+        LLMProvider.ANTHROPIC: [LLMProvider.OPENAI, LLMProvider.OLLAMA],
+        LLMProvider.GOOGLE: [LLMProvider.OPENAI, LLMProvider.OLLAMA],
+        LLMProvider.OLLAMA: [LLMProvider.OPENAI],
         LLMProvider.KIMI: [LLMProvider.OPENAI, LLMProvider.GLM, LLMProvider.DEEPSEEK],
         LLMProvider.GLM: [LLMProvider.KIMI, LLMProvider.OPENAI, LLMProvider.MINIMAX],
         LLMProvider.MINIMAX: [LLMProvider.GLM, LLMProvider.QWEN, LLMProvider.OPENAI],

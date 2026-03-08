@@ -40,22 +40,25 @@ def generate_embeddings_task(self, texts: List[str]) -> Dict[str, Any]:
 @celery_app.task(bind=True)
 def batch_generate_embeddings_task(self, texts: List[str], batch_size: int = 32) -> Dict[str, Any]:
     """
-    Generate embeddings in batches.
+    Generate embeddings in batches by calling the embedding service directly
+    (rather than dispatching sub-tasks which would lose results).
     """
-    all_embeddings = []
+    total_count = 0
     total_batches = (len(texts) + batch_size - 1) // batch_size
-    
+
     for i in range(0, len(texts), batch_size):
         batch = texts[i:i + batch_size]
         batch_num = i // batch_size + 1
-        
         logger.info(f"Processing batch {batch_num}/{total_batches}")
-        
-        # Generate embeddings for batch
-        result = generate_embeddings_task(batch)
-        all_embeddings.extend(result.get("embeddings", []))
-    
+
+        try:
+            embedding_service = get_embedding_service()
+            embeddings = asyncio.run(embedding_service.embed_texts(batch))
+            total_count += len(embeddings)
+        except Exception as e:
+            logger.error(f"Batch {batch_num} embedding failed: {e}")
+
     return {
         "status": "success",
-        "total_embeddings": len(all_embeddings)
+        "total_embeddings": total_count,
     }

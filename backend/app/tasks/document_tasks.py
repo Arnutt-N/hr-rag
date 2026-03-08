@@ -90,17 +90,21 @@ def batch_process_documents_task(self, document_ids: List[int]) -> Dict[str, Any
     return {"total": len(document_ids), "results": results}
 
 
-@celery_app.task
-def delete_document_vectors_task(document_id: int) -> Dict[str, Any]:
+@celery_app.task(bind=True, max_retries=3, default_retry_delay=30)
+def delete_document_vectors_task(self, document_id: int) -> Dict[str, Any]:
     """
     Delete document vectors from vector database.
     """
     logger.info(f"Deleting document vectors", document_id=document_id)
-    
-    async def _delete():
-        vector_store = get_vector_store_service()
-        await vector_store.delete_collection(f"doc_{document_id}")
-    
-    asyncio.run(_delete())
-    
-    return {"status": "success", "document_id": document_id}
+
+    try:
+        async def _delete():
+            vector_store = get_vector_store_service()
+            await vector_store.delete_collection(f"doc_{document_id}")
+
+        asyncio.run(_delete())
+        return {"status": "success", "document_id": document_id}
+
+    except Exception as e:
+        logger.error(f"Failed to delete vectors for document {document_id}: {e}")
+        raise self.retry(exc=e)

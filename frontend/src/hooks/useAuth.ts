@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 
 interface User {
-  id: string;
+  id: number;
   email: string;
 }
 

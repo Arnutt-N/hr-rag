@@ -16,19 +16,31 @@ settings = get_settings()
 
 class EmbeddingService:
     """Embedding service for Thai language support"""
-    
+
     def __init__(self):
         self.model_name = settings.embedding_model
         self.device = settings.embedding_device
         self.batch_size = settings.embedding_batch_size
         self._model = None
-    
+        self._model_lock = asyncio.Lock()
+
     @property
     def model(self):
-        """Lazy load model"""
+        """Lazy load model (sync access — use _ensure_model in async context)"""
         if self._model is None:
             self._model = SentenceTransformer(self.model_name, device=self.device)
         return self._model
+
+    async def _ensure_model(self):
+        """Thread-safe lazy model initialisation."""
+        if self._model is None:
+            async with self._model_lock:
+                if self._model is None:
+                    loop = asyncio.get_running_loop()
+                    self._model = await loop.run_in_executor(
+                        None,
+                        lambda: SentenceTransformer(self.model_name, device=self.device)
+                    )
     
     async def embed_texts(self, texts: List[str]) -> np.ndarray:
         """
@@ -42,12 +54,12 @@ class EmbeddingService:
         """
         if not texts:
             return np.array([])
-        
-        # Run in thread pool to avoid blocking
-        loop = asyncio.get_event_loop()
+
+        await self._ensure_model()
+        loop = asyncio.get_running_loop()
         embeddings = await loop.run_in_executor(
             None,
-            lambda: self.model.encode(
+            lambda: self._model.encode(
                 texts,
                 batch_size=self.batch_size,
                 show_progress_bar=len(texts) > 10,

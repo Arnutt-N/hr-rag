@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     
     class Config:
         env_file = ".env"
-        extra = "allow"
+        extra = "ignore"
     
     @model_validator(mode="after")
     def validate_and_set_settings(self):
@@ -126,17 +126,27 @@ class Settings(BaseSettings):
             )
         
         # Task 1.1: JWT Secret validation
+        _insecure_default = "dev-only-secret-change-in-production"
         jwt_secret = os.getenv("JWT_SECRET_KEY")
         if jwt_secret:
             self.jwt_secret_key = jwt_secret
         elif not self.jwt_secret_key or self.jwt_secret_key == "":
-            # ใช้ค่า default ใน dev mode แต่ warning
+            if not self.debug:
+                raise RuntimeError(
+                    "JWT_SECRET_KEY must be set in production (DEBUG=False). "
+                    "Generate one with: openssl rand -hex 64"
+                )
             warnings.warn(
                 "⚠️ JWT_SECRET_KEY ไม่ได้ตั้งค่า! กรุณาตั้งค่าใน .env สำหรับ production\n"
                 "สร้าง secret: openssl rand -hex 64",
                 UserWarning
             )
-            self.jwt_secret_key = "dev-only-secret-change-in-production"
+            self.jwt_secret_key = _insecure_default
+        elif self.jwt_secret_key == _insecure_default and not self.debug:
+            raise RuntimeError(
+                "JWT_SECRET_KEY is using the insecure default in production. "
+                "Set a strong random secret in your .env file."
+            )
         
         # Task 1.2: CORS Origins - parse comma-separated list
         cors_env = os.getenv("CORS_ORIGINS", "")

@@ -3,24 +3,25 @@ HR-RAG Backend - Vector Store Service
 Qdrant integration for vector storage and retrieval
 """
 
+import logging
 import uuid
-import json
 from typing import List, Optional, Dict, Any
 import numpy as np
-from qdrant_client import QdrantClient
+from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 
 from app.core.config import get_settings
 from app.services.embeddings import get_embedding_service
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class VectorStore:
     """Qdrant vector database for storing and retrieving document embeddings"""
-    
+
     def __init__(self):
-        self.client = QdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
+        self.client = AsyncQdrantClient(host=settings.qdrant_host, port=settings.qdrant_port)
         self.embedding_service = get_embedding_service()
     
     def _get_collection_name(self, project_id: int) -> str:
@@ -41,11 +42,11 @@ class VectorStore:
         embedding_dim = self.embedding_service.get_embedding_dimension()
         
         # Check if collection exists
-        collections = self.client.get_collections().collections
+        collections = (await self.client.get_collections()).collections
         exists = any(c.name == collection_name for c in collections)
-        
+
         if not exists:
-            self.client.create_collection(
+            await self.client.create_collection(
                 collection_name=collection_name,
                 vectors_config=VectorParams(
                     size=embedding_dim,
@@ -58,9 +59,9 @@ class VectorStore:
         """Delete collection for a project"""
         collection_name = self._get_collection_name(project_id)
         try:
-            self.client.delete_collection(collection_name=collection_name)
-        except Exception:
-            pass  # Ignore if doesn't exist
+            await self.client.delete_collection(collection_name=collection_name)
+        except Exception as e:
+            logger.warning("delete_collection_failed", collection=collection_name, error=str(e))
         return True
     
     async def upsert_documents(
@@ -112,7 +113,7 @@ class VectorStore:
         
         # Single batch upsert instead of one-by-one
         if points:
-            self.client.upsert(
+            await self.client.upsert(
                 collection_name=collection_name,
                 points=points
             )
@@ -144,7 +145,7 @@ class VectorStore:
         query_embedding = await self.embedding_service.embed_query(query)
         
         # Search
-        results = self.client.search(
+        results = await self.client.search(
             collection_name=collection_name,
             query_vector=query_embedding[0].tolist(),
             limit=top_k,
@@ -175,7 +176,7 @@ class VectorStore:
         from qdrant_client.models import FilterSelector
 
         # Delete by filter
-        self.client.delete(
+        await self.client.delete(
             collection_name=collection_name,
             points_selector=FilterSelector(
                 filter=Filter(
@@ -194,14 +195,15 @@ class VectorStore:
         """Get collection information"""
         collection_name = self._get_collection_name(project_id)
         try:
-            info = self.client.get_collection(collection_name=collection_name)
+            info = await self.client.get_collection(collection_name=collection_name)
             return {
                 "name": collection_name,
                 "vectors_count": info.vectors_count,
                 "points_count": info.points_count,
                 "status": info.status
             }
-        except Exception:
+        except Exception as e:
+            logger.warning("get_collection_info_failed", collection=collection_name, error=str(e))
             return {
                 "name": collection_name,
                 "vectors_count": 0,

@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 class SearchRequest(BaseModel):
     query: str
@@ -80,12 +80,27 @@ class LoginAttemptResponse(BaseModel):
         from_attributes = True
 
 
+# ==================== LLM PROVIDER ENUM ====================
+
+class LLMProvider(str, Enum):
+    OPENAI = "openai"
+    ANTHROPIC = "anthropic"
+    GOOGLE = "google"
+    OLLAMA = "ollama"
+    KIMI = "kimi"
+    GLM = "glm"
+    MINIMAX = "minimax"
+    QWEN = "qwen"
+    DEEPSEEK = "deepseek"
+    CUSTOM = "custom"
+
+
 # ==================== AUTH SCHEMAS ====================
 
 class UserCreate(BaseModel):
-    email: str
-    username: str
-    password: str
+    email: EmailStr
+    username: str = Field(..., min_length=3, max_length=50, pattern=r"^\w+$")
+    password: str = Field(..., min_length=8)
     full_name: Optional[str] = None
 
 
@@ -118,19 +133,4 @@ class ChatRequest(BaseModel):
     project_id: int
     session_id: Optional[int] = None
     stream: bool = False
-    llm_provider: Optional[str] = None
-
-
-# ==================== LLM PROVIDER ENUM ====================
-
-class LLMProvider(str, Enum):
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE = "google"
-    OLLAMA = "ollama"
-    KIMI = "kimi"
-    GLM = "glm"
-    MINIMAX = "minimax"
-    QWEN = "qwen"
-    DEEPSEEK = "deepseek"
-    CUSTOM = "custom"
+    llm_provider: Optional[LLMProvider] = None

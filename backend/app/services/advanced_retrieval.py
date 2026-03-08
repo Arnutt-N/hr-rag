@@ -2,12 +2,16 @@
 Advanced Retrieval Service - Hybrid Search + Reranking + Context Compression
 """
 
+import hashlib
+import logging
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 from langchain_core.documents import Document
 
 from app.services.vector_store_langchain import get_vector_store_service
 from app.services.llm.langchain_service import get_llm_service
+
+logger = logging.getLogger(__name__)
 
 
 class AdvancedRetrievalService:
@@ -197,7 +201,8 @@ Relevance score (0-10):"""
                 rerank_score = int(numbers[0]) if numbers else 5
                 rerank_score = max(0, min(10, rerank_score)) / 10  # Normalize to 0-1
                 
-            except:
+            except Exception as e:
+                logger.warning("rerank_score_failed", error=str(e))
                 rerank_score = item["combined_score"]
             
             # Combine original score with rerank score
@@ -257,8 +262,8 @@ Key points (2-3 bullet points):"""
                 
                 compressed_parts.append(f"[Doc {i+1}] {key_points}")
                 
-            except:
-                # Fallback to truncation
+            except Exception as e:
+                logger.warning("context_compression_failed", doc_index=i, error=str(e))
                 compressed_parts.append(f"[Doc {i+1}] {doc.page_content[:500]}...")
         
         return "\n\n".join(compressed_parts)
@@ -293,7 +298,8 @@ Return only the queries, one per line:"""
             
             return variations
             
-        except:
+        except Exception as e:
+            logger.warning("query_expansion_failed", error=str(e))
             return [query]
     
     async def retrieve_with_expansion(
@@ -334,8 +340,8 @@ Return only the queries, one per line:"""
         return unique_results[:k]
     
     def _doc_id(self, doc: Document) -> str:
-        """Generate unique ID for document."""
-        content_hash = hash(doc.page_content[:100])
+        """Generate deterministic unique ID for document."""
+        content_hash = hashlib.sha256(doc.page_content[:100].encode()).hexdigest()[:16]
         source = doc.metadata.get("source", "unknown")
         return f"{source}_{content_hash}"
 

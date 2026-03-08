@@ -4,6 +4,7 @@ Circuit Breaker - Resilience Pattern for External Services
 Prevents cascade failures when external services are unavailable.
 """
 
+import asyncio
 import time
 from enum import Enum
 from typing import Callable, Optional, Any
@@ -51,7 +52,10 @@ class CircuitBreaker:
     success_count: int = 0
     last_failure_time: float = 0.0
     half_open_calls: int = 0
-    
+
+    def __post_init__(self):
+        self._lock = asyncio.Lock()
+
     def protect(self, func: Callable) -> Callable:
         """Decorator to protect a function with circuit breaker."""
         
@@ -63,32 +67,35 @@ class CircuitBreaker:
     
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """Execute function with circuit breaker protection."""
-        
-        # Check if circuit should transition from OPEN to HALF_OPEN
-        if self.state == CircuitState.OPEN:
-            if time.time() - self.last_failure_time >= self.recovery_timeout:
-                self._transition_to(CircuitState.HALF_OPEN)
-            else:
-                raise CircuitBreakerOpenError(
-                    f"Circuit breaker '{self.name}' is OPEN. "
-                    f"Retry after {self.recovery_timeout - (time.time() - self.last_failure_time):.1f}s"
-                )
-        
-        # Limit calls in HALF_OPEN state
-        if self.state == CircuitState.HALF_OPEN:
-            if self.half_open_calls >= self.half_open_max_calls:
-                raise CircuitBreakerOpenError(
-                    f"Circuit breaker '{self.name}' is HALF_OPEN with max calls reached"
-                )
-            self.half_open_calls += 1
-        
+
+        async with self._lock:
+            # Check if circuit should transition from OPEN to HALF_OPEN
+            if self.state == CircuitState.OPEN:
+                if time.time() - self.last_failure_time >= self.recovery_timeout:
+                    self._transition_to(CircuitState.HALF_OPEN)
+                else:
+                    raise CircuitBreakerOpenError(
+                        f"Circuit breaker '{self.name}' is OPEN. "
+                        f"Retry after {self.recovery_timeout - (time.time() - self.last_failure_time):.1f}s"
+                    )
+
+            # Limit calls in HALF_OPEN state
+            if self.state == CircuitState.HALF_OPEN:
+                if self.half_open_calls >= self.half_open_max_calls:
+                    raise CircuitBreakerOpenError(
+                        f"Circuit breaker '{self.name}' is HALF_OPEN with max calls reached"
+                    )
+                self.half_open_calls += 1
+
         try:
             result = await func(*args, **kwargs)
-            self._on_success()
+            async with self._lock:
+                self._on_success()
             return result
-            
+
         except Exception as e:
-            self._on_failure()
+            async with self._lock:
+                self._on_failure()
             raise e
     
     def _on_success(self):

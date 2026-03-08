@@ -10,9 +10,13 @@ from typing import Dict, List, Any, Optional, Set, Tuple
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+import logging
+
 from langchain_core.documents import Document
 from app.services.llm.langchain_service import get_llm_service
 from app.services.advanced_retrieval import get_advanced_retrieval_service
+
+logger = logging.getLogger(__name__)
 
 # Optional Neo4j import
 try:
@@ -140,11 +144,11 @@ class GraphRAGService:
                 self.neo4j_service = get_neo4j_service()
                 if self.neo4j_service.connect():
                     self.use_neo4j = True
-                    print("Using Neo4j for Graph RAG")
+                    logger.info("Using Neo4j for Graph RAG")
                 else:
-                    print("Neo4j not available, using in-memory graph")
+                    logger.warning("Neo4j not available, using in-memory graph")
             except Exception as e:
-                print(f"Neo4j initialization failed: {e}, using in-memory graph")
+                logger.warning("Neo4j initialization failed, using in-memory graph", exc_info=e)
     
     async def build_graph_from_documents(self, documents: List[Document]):
         """Build knowledge graph from documents."""
@@ -186,7 +190,7 @@ class GraphRAGService:
                 )
         
         self._built = True
-        print(f"Graph built: {len(self.graph.entities)} entities, {len(self.graph.relations)} relations")
+        logger.info("graph_built", entities=len(self.graph.entities), relations=len(self.graph.relations))
     
     async def _extract_entities(self, text: str) -> List[Dict[str, str]]:
         """Extract entities from text using LLM."""
@@ -220,9 +224,9 @@ Return as JSON list:
             
             return []
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
-            print(f"Entity extraction error: {e}")
+            logger.warning("entity_extraction_error", error=str(e))
             return []
-    
+
     async def _extract_relations(self, text: str, entities: List[Dict]) -> List[Dict[str, Any]]:
         """Extract relations between entities."""
         if len(entities) < 2:
@@ -253,9 +257,9 @@ Common relations: manages, reports_to, belongs_to, governs, applies_to, located_
             
             return []
         except (json.JSONDecodeError, KeyError, TypeError, AttributeError) as e:
-            print(f"Relation extraction error: {e}")
+            logger.warning("relation_extraction_error", error=str(e))
             return []
-    
+
     async def retrieve(
         self,
         query: str,

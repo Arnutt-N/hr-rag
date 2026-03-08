@@ -17,6 +17,7 @@ from sqlalchemy.orm import relationship, declarative_base
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from app.core.config import get_settings
+from app.models.schemas import LLMProvider
 
 settings = get_settings()
 
@@ -44,12 +45,6 @@ class UserRole(str, enum.Enum):
     USER = "user"
 
 
-class LLMProvider(str, enum.Enum):
-    OPENAI = "openai"
-    ANTHROPIC = "anthropic"
-    GOOGLE = "google"
-    OLLAMA = "ollama"
-
 
 class User(Base):
     __tablename__ = "users"
@@ -66,16 +61,20 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     
     # Preferences
-    preferred_llm_provider = Column(Enum(LLMProvider), default=LLMProvider.OPENAI)
+    preferred_llm_provider = Column(Enum(LLMProvider, name="llmprovider"), default=LLMProvider.OPENAI)
     preferred_embedding_model = Column(String(100), default="BAAI/bge-m3")
     
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
+
     # Relationships
     projects = relationship("Project", back_populates="owner", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="user", cascade="all, delete-orphan")
+
+    @property
+    def is_admin(self) -> bool:
+        return self.role == UserRole.ADMIN
 
 
 class Project(Base):

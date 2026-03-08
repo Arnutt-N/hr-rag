@@ -18,7 +18,7 @@ from app.services.evaluation import (
     EvaluationMetrics,
 )
 
-router = APIRouter(prefix="/api/evaluation", tags=["evaluation"])
+router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
 
 class EvaluationRequest(BaseModel):

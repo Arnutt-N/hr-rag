@@ -88,7 +88,7 @@ export function useChat(options: UseChatOptions = {}) {
                   )
                 );
               } catch (e) {
-                // Ignore
+                setError("Failed to parse server message");
               }
             }
           }
@@ -113,6 +113,5 @@ export function useChat(options: UseChatOptions = {}) {
     error,
     sendMessage,
     clearMessages,
-    setMessages,
   };
 }

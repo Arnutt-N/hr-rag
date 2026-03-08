@@ -89,23 +89,31 @@ async def chat(
     prompt = llm.build_rag_prompt(payload.message, context_docs)
 
     async def sse_gen() -> AsyncGenerator[str, None]:
-        collected = []
-        async for chunk in llm.generate_response(prompt, provider=provider, stream=True):
-            collected.append(chunk)
-            yield f"data: {json.dumps({'content': chunk})}\n\n"
-        full = "".join(collected)
-        # save assistant message
-        assistant_msg = ChatMessage(
-            session_id=session.id,
-            role="assistant",
-            content=full,
-            context_docs=context_docs,
-            llm_provider=provider.value if hasattr(provider, 'value') else str(provider),
-            llm_model=llm.get_default_model(provider),
-        )
-        db.add(assistant_msg)
-        await db.commit()
-        yield f"data: {json.dumps({'done': True, 'session_id': session.id})}\n\n"
+        # Open a fresh DB session — the route-handler session closes when the
+        # Response object is returned, before the generator finishes streaming.
+        from app.models.database import AsyncSessionLocal
+        async with AsyncSessionLocal() as gen_db:
+            collected = []
+            try:
+                async for chunk in llm.generate_response(prompt, provider=provider, stream=True):
+                    collected.append(chunk)
+                    yield f"data: {json.dumps({'content': chunk})}\n\n"
+            except Exception as e:
+                logger.error("sse_generation_error", session_id=session.id, error=str(e))
+                yield f"event: error\ndata: {json.dumps({'error': 'Generation failed'})}\n\n"
+                return
+            full = "".join(collected)
+            assistant_msg = ChatMessage(
+                session_id=session.id,
+                role="assistant",
+                content=full,
+                context_docs=context_docs,
+                llm_provider=provider.value if hasattr(provider, 'value') else str(provider),
+                llm_model=llm.get_default_model(provider),
+            )
+            gen_db.add(assistant_msg)
+            await gen_db.commit()
+            yield f"data: {json.dumps({'done': True, 'session_id': session.id})}\n\n"
 
     if payload.stream:
         return StreamingResponse(sse_gen(), media_type="text/event-stream")
@@ -134,24 +142,29 @@ async def chat(
 
 @router.websocket("/ws")
 async def chat_ws(websocket: WebSocket):
-    # Auth via query param token to keep it simple for WS (can be upgraded to headers/cookies)
-    # ws://.../chat/ws?token=...
+    # Auth via the first WebSocket message (avoids token appearing in URL /
+    # server access logs / browser history which query-param auth causes).
+    # Client must send: {"type": "auth", "token": "<jwt>"}
+    import asyncio
     from app.core.security import decode_token
-    token = websocket.query_params.get("token")
-    if not token:
-        logger.warning("ws_chat_auth_failed", reason="missing_token")
-        await websocket.close(code=4401)
-        return
+
+    await websocket.accept()
 
     try:
+        raw_auth = await asyncio.wait_for(websocket.receive_text(), timeout=10.0)
+        auth_data = json.loads(raw_auth)
+        token = auth_data.get("token")
+        if not token:
+            logger.warning("ws_chat_auth_failed", reason="missing_token")
+            await websocket.close(code=4401)
+            return
         payload = decode_token(token)
         user_id = int(payload.get("sub"))
     except Exception as e:
-        logger.warning("ws_chat_auth_failed", reason="invalid_token", error=str(e))
+        logger.warning("ws_chat_auth_failed", error=str(e))
         await websocket.close(code=4401)
         return
 
-    await websocket.accept()
     logger.info("ws_chat_connected", user_id=user_id)
 
     # Create a DB session manually in WS
@@ -214,8 +227,9 @@ async def chat_ws(websocket: WebSocket):
         except WebSocketDisconnect:
             return
         except Exception as e:
+            logger.error("ws_chat_internal_error", user_id=user_id, error=str(e))
             try:
-                await websocket.send_text(json.dumps({"type": "error", "detail": str(e)}))
+                await websocket.send_text(json.dumps({"type": "error", "detail": "An internal error occurred"}))
             finally:
                 await websocket.close(code=1011)
                 return

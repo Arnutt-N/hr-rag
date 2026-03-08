@@ -1,0 +1,21 @@
+{
+  "env": {
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-k2.5",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "qwen3.5-plus",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-5",
+    "ANTHROPIC_AUTH_TOKEN": "sk-sp-fa84b3393c994db9b2b67efae710467e",
+    "ANTHROPIC_BASE_URL": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run:*)",
+      "Bash(date:*)",
+      "Bash(powershell:*)",
+      "Bash(git add:*)"
+    ]
+  },
+  "primaryModel": "qwen3.5-plus",
+  "anthropicApiBaseUrl": "https://coding-intl.dashscope.aliyuncs.com/apps/anthropic"
+}

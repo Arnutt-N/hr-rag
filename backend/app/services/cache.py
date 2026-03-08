@@ -56,6 +56,17 @@ class CacheService:
     def is_enabled(self) -> bool:
         """Check if cache is enabled and connected"""
         return self._enabled and self.client is not None
+
+    async def ping(self) -> bool:
+        """Ping Redis to verify connectivity"""
+        if not self.client:
+            return False
+        try:
+            await self.client.ping()
+            return True
+        except Exception as e:
+            logger.warning(f"Redis ping failed: {e}")
+            return False
     
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""

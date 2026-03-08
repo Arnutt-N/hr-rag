@@ -128,43 +128,48 @@ class RAGChainService:
         return_sources: bool = True
     ) -> Dict[str, Any]:
         """
-        Answer question using RAG.
-        
+        Answer question using RAG. Retrieves documents once and reuses them for
+        both the LLM context and the returned sources (avoids a duplicate retrieval).
+
         Args:
             question: User question
             collection_name: Collection to search
             k: Number of documents to retrieve
             return_sources: Include source documents in response
-        
+
         Returns:
             Answer with optional sources
         """
         collection = collection_name or self.collection_name
-        
-        # Get chain
-        chain = self.create_chain(collection, k)
-        
-        # Get answer
-        answer = await chain.ainvoke(question)
-        
-        result = {"answer": answer}
-        
-        # Get sources if requested
+
+        # Single retrieval
+        vector_store = self.vector_store.get_vector_store(collection)
+        retriever = vector_store.as_retriever(
+            search_type="similarity",
+            search_kwargs={"k": k}
+        )
+        docs = await retriever.aget_relevant_documents(question)
+        context = self._format_docs(docs)
+
+        # Build answer from already-retrieved context
+        answer_chain = (
+            HR_RAG_PROMPT
+            | self.llm_service.llm
+            | StrOutputParser()
+        )
+        answer_text = await answer_chain.ainvoke({"context": context, "question": question})
+
+        result: Dict[str, Any] = {"answer": answer_text}
+
         if return_sources:
-            sources = await self.vector_store.similarity_search(
-                collection_name=collection,
-                query=question,
-                k=k
-            )
-            
             result["sources"] = [
                 {
                     "content": doc.page_content[:300] + "..." if len(doc.page_content) > 300 else doc.page_content,
                     "metadata": doc.metadata
                 }
-                for doc in sources
+                for doc in docs
             ]
-        
+
         return result
     
     async def answer_with_history(
