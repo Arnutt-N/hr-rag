@@ -38,7 +38,7 @@ export default function DashboardPage() {
       }
     >
       <div className="h-[calc(100vh-140px)] overflow-hidden rounded-3xl border border-slate-200 bg-white/60 backdrop-blur dark:border-slate-800 dark:bg-slate-900/30">
-        <ChatPanel />
+        <ChatPanel message={{ id: "", role: "assistant", content: "", timestamp: new Date() }} />
       </div>
     </AppShell>
   );

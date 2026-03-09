@@ -217,17 +217,17 @@ export default function AdminSettings() {
                 </div>
                 <button
                   onClick={() =>
-                    setSettings({
-                      ...settings!,
+                    settings && setSettings({
+                      ...settings,
                       feature_flags: {
-                        ...settings!.feature_flags,
-                        [feature.key]: !settings!.feature_flags[feature.key as keyof typeof settings.feature_flags],
+                        ...settings.feature_flags,
+                        [feature.key]: !settings.feature_flags[feature.key as keyof typeof settings.feature_flags],
                       },
                     })
                   }
                   className="p-2"
                 >
-                  {settings?.feature_flags[feature.key as keyof typeof settings.feature_flags] ? (
+                  {settings?.feature_flags?.[feature.key as keyof typeof settings.feature_flags] ? (
                     <ToggleRight className="w-8 h-8 text-green-600" />
                   ) : (
                     <ToggleLeft className="w-8 h-8 text-gray-400" />

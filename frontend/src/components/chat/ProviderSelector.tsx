@@ -227,9 +227,9 @@ function ProviderOption({ provider, isSelected, onClick, icon }: ProviderOptionP
         </span>
         {/* Capabilities */}
         <div className="flex gap-1" title="Capabilities">
-          {provider.capabilities.streaming && <Zap className="w-3 h-3 text-green-500" title="Streaming" />}
-          {provider.capabilities.vision && <Eye className="w-3 h-3 text-blue-500" title="Vision" />}
-          {provider.capabilities.functionCalling && <Workflow className="w-3 h-3 text-purple-500" title="Function Calling" />}
+          {provider.capabilities.streaming && <span title="Streaming"><Zap className="w-3 h-3 text-green-500" /></span>}
+          {provider.capabilities.vision && <span title="Vision"><Eye className="w-3 h-3 text-blue-500" /></span>}
+          {provider.capabilities.functionCalling && <span title="Function Calling"><Workflow className="w-3 h-3 text-purple-500" /></span>}
         </div>
       </div>
     </button>

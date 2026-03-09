@@ -92,10 +92,10 @@ export function UserRow({
                 {user.full_name || user.username}
               </h3>
               {user.is_member && (
-                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" title="Member" />
+                <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
               )}
               {!user.is_active && (
-                <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" title="Inactive" />
+                <XCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
               )}
             </div>
             <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">

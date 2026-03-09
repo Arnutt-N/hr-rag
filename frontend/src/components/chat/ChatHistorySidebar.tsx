@@ -25,8 +25,7 @@ export function ChatHistorySidebar() {
           </div>
         ) : (
           sessions.map((s) => {
-            const active = currentSession?.id === s.id;
-            const last = s.messages?.[s.messages.length - 1];
+            const active = currentSession === s.id;
             return (
               <button
                 key={s.id}
@@ -36,7 +35,7 @@ export function ChatHistorySidebar() {
                     ? 'border-primary-400 bg-primary-50 dark:bg-primary-900/20'
                     : 'border-slate-200 bg-white/60 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900/20 dark:hover:bg-slate-800/30'
                 )}
-                onClick={() => setCurrentSession(s)}
+                onClick={() => setCurrentSession(s.id)}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
@@ -44,11 +43,7 @@ export function ChatHistorySidebar() {
                       <MessageSquare className="h-4 w-4 text-slate-500" />
                       <span className="truncate">{s.title || 'Chat'}</span>
                     </div>
-                    <div className="mt-1 text-xs text-slate-500">
-                      {last ? truncateText(last.content, 60) : 'เริ่มบทสนทนาใหม่...'}
-                    </div>
                   </div>
-                  <div className="text-[11px] text-slate-400">{formatRelativeTime(s.updatedAt)}</div>
                 </div>
               </button>
             );

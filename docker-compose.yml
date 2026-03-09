@@ -30,24 +30,20 @@ services:
           cpus: '0.5'
           memory: 256M
 
-  # Frontend - Next.js
+  # Frontend - Next.js (Production)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: hr-rag-frontend
     ports:
-      - "3000:3000"
+      - "3002:3000"
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://localhost:8000
       - NEXT_PUBLIC_QDRANT_URL=http://qdrant:6333
     depends_on:
       - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: npm run dev
     restart: unless-stopped
     deploy:
       resources:
@@ -255,7 +251,7 @@ services:
     image: grafana/grafana:10.2.0
     container_name: hr-rag-grafana
     ports:
-      - "3001:3000"
+      - "3003:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}

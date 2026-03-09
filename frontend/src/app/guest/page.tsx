@@ -19,7 +19,7 @@ export default function GuestPage() {
         </div>
       </div>
       <div className="h-[calc(100vh-56px)]">
-        <ChatPanel guest />
+        <ChatPanel message={{ id: "", role: "assistant", content: "", timestamp: new Date() }} />
       </div>
     </div>
   );

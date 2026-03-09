@@ -20,7 +20,7 @@ export function useTheme() {
       return () => mq.removeEventListener('change', listener);
     }
 
-    apply(theme);
+    if (theme) apply(theme);
   }, [theme]);
 
   return { theme, setTheme };

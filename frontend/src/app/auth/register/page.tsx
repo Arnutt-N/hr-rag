@@ -21,7 +21,7 @@ export default function RegisterPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const ok = await register({ name, email, password });
+    const ok = await register(email, password, name);
     setLoading(false);
     if (ok) router.push('/dashboard');
   };

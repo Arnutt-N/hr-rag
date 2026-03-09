@@ -14,6 +14,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
+# Create public folder if it doesn't exist
+RUN mkdir -p /app/public
 
 FROM node:22-alpine AS runner
 WORKDIR /app

@@ -83,7 +83,7 @@ export default function AdminAnalyticsPage() {
           {[7, 30, 90].map((d) => (
             <Button
               key={d}
-              variant={days === d ? "default" : "outline"}
+              variant={days === d ? "primary" : "outline"}
               size="sm"
               onClick={() => setDays(d)}
             >

@@ -19,6 +19,17 @@ export function useChat(options: UseChatOptions = {}) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Session management
+  const [sessions, setSessions] = useState<{id: string; title: string}[]>([]);
+  const [currentSession, setCurrentSession] = useState<string | null>(null);
+
+  const createSession = useCallback(() => {
+    const newSession = { id: Date.now().toString(), title: "New Chat" };
+    setSessions(prev => [...prev, newSession]);
+    setCurrentSession(newSession.id);
+    return newSession;
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -80,8 +91,8 @@ export function useChat(options: UseChatOptions = {}) {
               try {
                 const parsed = JSON.parse(data);
                 assistantContent += parsed.content || "";
-                setMessages((prev) =
-                  prev.map((msg) =
+                setMessages((prev) =>
+                  prev.map((msg) =>
                     msg.id === assistantMessage.id
                       ? { ...msg, content: assistantContent }
                       : msg
@@ -113,5 +124,9 @@ export function useChat(options: UseChatOptions = {}) {
     error,
     sendMessage,
     clearMessages,
+    sessions,
+    currentSession,
+    setCurrentSession,
+    createSession,
   };
 }
